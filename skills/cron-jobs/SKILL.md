@@ -1,0 +1,29 @@
+# cron-jobs
+
+Purpose: help schedule recurring jobs inside the container using cron.
+
+## Workflow
+1) Ensure cron is installed and running.
+2) Choose either `/etc/cron.d/` (system-wide) or user crontab.
+3) Add the schedule with explicit PATH and shell.
+4) Verify execution via logs.
+
+## Install + start cron
+```
+apt-get update
+apt-get install -y cron
+systemctl enable --now cron
+```
+
+## /etc/cron.d/ example
+```
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+# m h dom mon dow user command
+*/5 * * * * root /usr/bin/env bash -lc 'cd /workspace/<app> && ./scripts/job.sh' >> /var/log/<app>-cron.log 2>&1
+```
+
+## Verify
+- `systemctl status cron`
+- `tail -n 200 /var/log/<app>-cron.log`

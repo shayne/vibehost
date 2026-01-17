@@ -2,6 +2,7 @@ FROM ubuntu:24.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV container=docker
+ENV CODEX_HOME=/root/.codex
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
@@ -33,6 +34,9 @@ exec npx -y @google/gemini-cli@latest "$@"\
 SCRIPT\
   ; \
   chmod +x /usr/local/bin/codex /usr/local/bin/claude /usr/local/bin/gemini
+
+RUN mkdir -p ${CODEX_HOME}/skills
+COPY skills/ ${CODEX_HOME}/skills/
 
 VOLUME ["/sys/fs/cgroup"]
 STOPSIGNAL SIGRTMIN+3

@@ -68,7 +68,7 @@ Building and running "vibe-coded" apps with agent assistance typically requires 
   - Acceptance: A basic systemd service can be installed and started inside the container.
 - [ ] R5: Agent tooling is preinstalled and selectable (Codex default; Claude Code, Gemini alternatives).
   - Acceptance: User can choose provider at launch time or via config.
-- [ ] R6: Built-in skills guide agents on web services, cron jobs, and background services.
+- [x] R6: Built-in skills guide agents on web services, cron jobs, and background services.
   - Acceptance: Skills are available in the agent runtime and are discoverable.
 - [ ] R7: Snapshot and restore are supported via CLI and in-container commands.
   - Acceptance: `vibehost <app> snapshot` creates a restorable image; `restore` can roll back state.
@@ -157,6 +157,7 @@ Progress Notes:
 - Added client/server snapshot and restore commands that create Docker snapshot images and restore from named or `latest` snapshots.
 - Added a base container Dockerfile (Ubuntu + systemd + Node.js) and agent CLI wrappers that invoke `npx` for Codex, Claude Code, and Gemini.
 - Updated server container run/restore flow to boot systemd (`/sbin/init`) with cgroup/tmpfs mounts so background services can run.
+- Added built-in skills for web services, cron jobs, and background services to the container image.
 
 ### Phase 4: Local E2E Test (localhost SSH)
 - Treat the VM as both client + server.
@@ -197,7 +198,7 @@ Progress Notes:
 ### Container Image
 - [ ] Container boots with systemd enabled.
 - [ ] Agent tooling is present and runnable (Codex default).
-- [ ] Skills are present and discoverable in the agent runtime.
+- [x] Skills are present and discoverable in the agent runtime.
 - [ ] Background service can be installed and started inside the container.
 
 ### Port Mapping
