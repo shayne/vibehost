@@ -306,6 +306,7 @@ func handleBootstrap(args []string) {
 	command := bootstrapCommand(bootstrapScript())
 	remoteArgs := []string{"bash", "-lc", command}
 	sshArgs := sshcmd.BuildArgs(resolved.Host, remoteArgs, tty)
+	sshArgs = append([]string{"-o", "LogLevel=ERROR"}, sshArgs...)
 
 	cmd := exec.Command("ssh", sshArgs...)
 	cmd.Stdin = os.Stdin
@@ -319,6 +320,7 @@ func handleBootstrap(args []string) {
 		fmt.Fprintf(os.Stderr, "failed to start ssh: %v\n", err)
 		os.Exit(1)
 	}
+	fmt.Fprintln(os.Stdout, "bootstrap complete")
 }
 
 func bootstrapScript() string {
@@ -428,7 +430,6 @@ else
 fi
 
 $SUDO install -m 0755 "$tmp_file" "$VIBEHOST_SERVER_INSTALL_DIR/$VIBEHOST_SERVER_BIN"
-echo "bootstrap complete"
 `
 }
 
