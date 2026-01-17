@@ -154,6 +154,8 @@ Progress Notes:
 - Added initial `vibehost-server` CLI that provisions/starts Docker containers, persists port allocations, and attaches an interactive shell.
 - Implemented `vibehost config` command to view/update config with default host, agent provider, and host alias mappings.
 - Wired agent provider selection through the client config into `vibehost-server`, which now launches provider commands (`codex`, `claude`, `gemini`) inside the container.
+- Added client/server snapshot and restore commands that create Docker snapshot images and restore from named or `latest` snapshots.
+- Added a base container Dockerfile (Ubuntu + systemd + Node.js) and agent CLI wrappers that invoke `npx` for Codex, Claude Code, and Gemini.
 
 ### Phase 4: Local E2E Test (localhost SSH)
 - Treat the VM as both client + server.
