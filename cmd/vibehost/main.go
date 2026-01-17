@@ -46,7 +46,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	remoteArgs := sshcmd.RemoteArgs(resolved.App)
+	agentProvider := cfg.AgentProvider
+	if strings.TrimSpace(agentProvider) == "" {
+		agentProvider = "codex"
+	}
+	remoteArgs := sshcmd.RemoteArgs(resolved.App, agentProvider)
 	sshArgs := sshcmd.BuildArgs(resolved.Host, remoteArgs)
 
 	cmd := exec.Command("ssh", sshArgs...)

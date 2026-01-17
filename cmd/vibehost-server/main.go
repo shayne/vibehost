@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"flag"
 	"fmt"
 	"os"
 	"os/exec"
@@ -15,14 +16,27 @@ import (
 const defaultImage = "vibehost:latest"
 
 func main() {
-	if len(os.Args) != 2 {
-		fmt.Fprintln(os.Stderr, "Usage: vibehost-server <app>")
+	fs := flag.NewFlagSet("vibehost-server", flag.ContinueOnError)
+	fs.SetOutput(os.Stderr)
+	agentProvider := fs.String("agent", "codex", "agent provider to run (codex, claude, gemini)")
+	if err := fs.Parse(os.Args[1:]); err != nil {
 		os.Exit(2)
 	}
 
-	app := strings.TrimSpace(os.Args[1])
+	if fs.NArg() != 1 {
+		fmt.Fprintln(os.Stderr, "Usage: vibehost-server [--agent provider] <app>")
+		os.Exit(2)
+	}
+
+	app := strings.TrimSpace(fs.Arg(0))
 	if app == "" {
 		fmt.Fprintln(os.Stderr, "app name is required")
+		os.Exit(2)
+	}
+
+	agentArgs, err := agentCommand(*agentProvider)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "invalid agent provider: %v\n", err)
 		os.Exit(2)
 	}
 
@@ -93,7 +107,7 @@ func main() {
 		}
 	}
 
-	if err := dockerExec(containerName); err != nil {
+	if err := dockerExec(containerName, agentArgs); err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			os.Exit(exitErr.ExitCode())
 		}
@@ -186,10 +200,28 @@ func dockerStart(name string) error {
 	return cmd.Run()
 }
 
-func dockerExec(name string) error {
-	cmd := exec.Command("docker", "exec", "-it", name, "/bin/bash")
+func dockerExec(name string, agentArgs []string) error {
+	if len(agentArgs) == 0 {
+		agentArgs = []string{"/bin/bash"}
+	}
+	args := append([]string{"exec", "-it", name}, agentArgs...)
+	cmd := exec.Command("docker", args...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
+}
+
+func agentCommand(provider string) ([]string, error) {
+	normalized := strings.ToLower(strings.TrimSpace(provider))
+	switch normalized {
+	case "", "codex":
+		return []string{"codex"}, nil
+	case "claude", "claude-code":
+		return []string{"claude"}, nil
+	case "gemini":
+		return []string{"gemini"}, nil
+	default:
+		return nil, fmt.Errorf("unsupported provider %q", provider)
+	}
 }

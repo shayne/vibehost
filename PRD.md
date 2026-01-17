@@ -153,6 +153,7 @@ Progress Notes:
 - Added SSH invocation with TTY passthrough in the client CLI; errors clearly if SSH is missing.
 - Added initial `vibehost-server` CLI that provisions/starts Docker containers, persists port allocations, and attaches an interactive shell.
 - Implemented `vibehost config` command to view/update config with default host, agent provider, and host alias mappings.
+- Wired agent provider selection through the client config into `vibehost-server`, which now launches provider commands (`codex`, `claude`, `gemini`) inside the container.
 
 ### Phase 4: Local E2E Test (localhost SSH)
 - Treat the VM as both client + server.

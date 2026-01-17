@@ -3,8 +3,11 @@ package sshcmd
 import "fmt"
 
 // RemoteArgs builds the remote command executed on the server host.
-func RemoteArgs(app string) []string {
-	return []string{fmt.Sprintf("vibehost-server %s", app)}
+func RemoteArgs(app string, agentProvider string) []string {
+	if agentProvider == "" {
+		agentProvider = "codex"
+	}
+	return []string{fmt.Sprintf("vibehost-server --agent %s %s", agentProvider, app)}
 }
 
 // BuildArgs builds the ssh argument list for a target host and remote command.
