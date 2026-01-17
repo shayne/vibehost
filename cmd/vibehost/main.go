@@ -281,7 +281,7 @@ func handleBootstrap(args []string) {
 		hostArg = fs.Arg(0)
 	}
 
-	cfg, _, err := config.Load()
+	cfg, path, err := config.Load()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to load config: %v\n", err)
 		os.Exit(1)
@@ -319,6 +319,15 @@ func handleBootstrap(args []string) {
 		}
 		fmt.Fprintf(os.Stderr, "failed to start ssh: %v\n", err)
 		os.Exit(1)
+	}
+	if strings.TrimSpace(cfg.DefaultHost) == "" && strings.TrimSpace(hostArg) != "" {
+		cfg.DefaultHost = hostArg
+		if err := config.Save(path, cfg); err != nil {
+			fmt.Fprintf(os.Stderr, "bootstrap complete, but failed to save default host: %v\n", err)
+			fmt.Fprintf(os.Stderr, "run `vibehost config --host %s` to set it manually\n", hostArg)
+		} else {
+			fmt.Fprintf(os.Stdout, "default host set to %s\n", hostArg)
+		}
 	}
 	fmt.Fprintln(os.Stdout, "bootstrap complete")
 }
