@@ -11,9 +11,19 @@ run = "go test ./..."
 [tasks.vet]
 run = "go vet ./..."
 
+[tasks."build:image"]
+run = "docker build -t vibehost:local ."
+
 [tasks."release:build"]
 run = """
 mkdir -p dist
 GOOS=linux GOARCH=amd64 go build -o dist/vibehost-linux-amd64 ./cmd/vibehost
 GOOS=linux GOARCH=amd64 go build -o dist/vibehost-server-linux-amd64 ./cmd/vibehost-server
+"""
+
+[tasks."release:push-image"]
+run = """
+: "${IMAGE:?IMAGE is required (e.g., ghcr.io/OWNER/REPO/vibehost:TAG)}"
+docker build -t "$IMAGE" .
+docker push "$IMAGE"
 """

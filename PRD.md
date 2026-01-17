@@ -180,6 +180,7 @@ Progress Notes:
 - Added a VIBEHOST_AGENT_CHECK hook plus E2E verification that the agent command runs in a TTY-backed session.
 - Added a nightly GitHub Actions workflow that runs build/test/vet via `mise` tasks.
 - Added a release GitHub Actions workflow that builds Linux artifacts on version tags via `mise run release:build`.
+- Added GHCR image build/push automation plus matching `mise` tasks for local parity.
 
 ### Phase 4: Local E2E Test (localhost SSH)
 - Treat the VM as both client + server.
@@ -200,10 +201,10 @@ Progress Notes:
 
 ### Phase 6: CI + Release Automation (prepare, but runnable locally)
 - Add GitHub Actions workflows:
-  - Nightly build on `main`.
-  - Release build on version tags `v*`.
-  - Build and push container image to GHCR.
-- Ensure every CI step has a local `mise` task equivalent so it can be run end-to-end on this VM without GitHub.
+  - [x] Nightly build on `main`.
+  - [x] Release build on version tags `v*`.
+  - [x] Build and push container image to GHCR.
+- [x] Ensure every CI step has a local `mise` task equivalent so it can be run end-to-end on this VM without GitHub.
 
 ## Acceptance Test Checklists
 ### Client CLI

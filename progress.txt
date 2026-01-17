@@ -46,3 +46,4 @@ ok  	vibehost/internal/target	(cached) and \.
 2026-01-17: Added VIBEHOST_AGENT_CHECK hook to pass agent-check command through ssh/docker exec, updated container wrappers + E2E script to verify agent session output. Ran `mise exec -- go test ./...` and `mise exec -- go vet ./...`.
 2026-01-17: Added nightly GitHub Actions workflow plus mise build/test/vet tasks for CI parity. Ran `mise exec -- go test ./...` and `mise exec -- go vet ./...`.
 2026-01-17: Added release workflow for tag builds plus a mise task to produce Linux release artifacts. Ran `mise run test` and `mise run vet`.
+2026-01-17: Added GHCR image build/push workflow with matching mise tasks (build:image, release:push-image). Ran `mise run test` and `mise run vet`.
