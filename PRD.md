@@ -58,11 +58,11 @@ Building and running "vibe-coded" apps with agent assistance typically requires 
 - Web UI for management and observability.
 
 ## Functional Requirements (ordered)
-- [ ] R1: CLI command `vibehost <app>` opens an agent session in the app container on the default host.
+- [x] R1: CLI command `vibehost <app>` opens an agent session in the app container on the default host.
   - Acceptance: The client connects via SSH to the host, executes the server program, and the user is placed into a TTY/PTY-backed agent session.
-- [ ] R2: CLI supports host targeting via `vibehost <app>@<host>`.
+- [x] R2: CLI supports host targeting via `vibehost <app>@<host>`.
   - Acceptance: Command routes to specified host from XDG config without manual flags.
-- [ ] R3: Server daemon/CLI manages container lifecycle and port mappings per app.
+- [x] R3: Server daemon/CLI manages container lifecycle and port mappings per app.
   - Acceptance: First app maps container port 8080 to host 8080; subsequent apps map to 8081, 8082, etc.
 - [x] R4: Containers include systemd support and can run background services.
   - Acceptance: A basic systemd service can be installed and started inside the container.
@@ -173,6 +173,7 @@ Progress Notes:
 - Synced server port state from existing vibehost containers on startup so port assignments survive missing state files.
 - Added server prompt tests to confirm default-yes behavior for app creation prompts.
 - Added a client-side guard to require a TTY for interactive sessions so agent runs fail fast in non-terminal environments.
+- Added tmux-based session wrapping for agent and shell commands to support multiple concurrent sessions.
 
 ### Phase 4: Local E2E Test (localhost SSH)
 - Treat the VM as both client + server.
@@ -200,16 +201,16 @@ Progress Notes:
 
 ## Acceptance Test Checklists
 ### Client CLI
-- [ ] `vibehost <app>` opens a TTY session via SSH to the server CLI.
-- [ ] `vibehost <app>@<host>` targets the configured host alias.
-- [ ] `vibehost config` persists default host and agent provider.
-- [ ] CLI exits with a clear error if SSH is unavailable or host config is missing.
+- [x] `vibehost <app>` opens a TTY session via SSH to the server CLI.
+- [x] `vibehost <app>@<host>` targets the configured host alias.
+- [x] `vibehost config` persists default host and agent provider.
+- [x] CLI exits with a clear error if SSH is unavailable or host config is missing.
 
 ### Server Daemon/CLI
-- [ ] Server CLI detects missing app and prompts to create (default yes on Enter).
-- [ ] Container create/attach works for an existing app without re-provisioning.
+- [x] Server CLI detects missing app and prompts to create (default yes on Enter).
+- [x] Container create/attach works for an existing app without re-provisioning.
 - [ ] TTY/PTY is interactive (full-screen TUI works, arrow keys, resize).
-- [ ] Multiplexing supports at least one secondary session (e.g., shell + agent).
+- [x] Multiplexing supports at least one secondary session (e.g., shell + agent).
 
 ### Container Image
 - [ ] Container boots with systemd enabled.
@@ -218,8 +219,8 @@ Progress Notes:
 - [x] Background service can be installed and started inside the container.
 
 ### Port Mapping
-- [ ] First app maps container 8080 -> host 8080.
-- [ ] Second app maps container 8080 -> host 8081.
+- [x] First app maps container 8080 -> host 8080.
+- [x] Second app maps container 8080 -> host 8081.
 - [x] Mapping is stable across restarts and stored in server state.
 
 ### Snapshot/Restore
