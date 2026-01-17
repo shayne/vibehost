@@ -148,6 +148,9 @@ Building and running "vibe-coded" apps with agent assistance typically requires 
   - SSHs to host and runs server CLI with TTY passthrough.
   - Supports `vibehost <app>` and snapshot/restore commands.
 
+Progress Notes:
+- Implemented initial client-side target parsing + config-based host/alias resolution in Go (no SSH yet).
+
 ### Phase 4: Local E2E Test (localhost SSH)
 - Treat the VM as both client + server.
 - Configure SSH to localhost and run `vibehost myapp`.
