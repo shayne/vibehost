@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"time"
@@ -286,6 +287,7 @@ func handleBootstrap(args []string) {
 	fs.SetOutput(os.Stderr)
 	localBootstrap := fs.Bool("local", false, "install server from local build instead of GitHub release")
 	localPath := fs.String("local-path", "", "install server from a local binary at this path")
+	localImage := fs.Bool("local-image", false, "build and load the container image from the local Docker daemon")
 	if err := fs.Parse(args); err != nil {
 		os.Exit(2)
 	}
@@ -330,6 +332,14 @@ func handleBootstrap(args []string) {
 	if strings.TrimSpace(*localPath) != "" {
 		*localBootstrap = true
 	}
+	if isDevRun() {
+		if !*localBootstrap && strings.TrimSpace(*localPath) == "" {
+			*localBootstrap = true
+		}
+		if !*localImage {
+			*localImage = true
+		}
+	}
 	if *localBootstrap {
 		remotePath, err := stageLocalServerBinary(resolved.Host, *localPath)
 		if err != nil {
@@ -337,6 +347,13 @@ func handleBootstrap(args []string) {
 			os.Exit(1)
 		}
 		env = append(env, "VIBEHOST_SERVER_LOCAL_PATH="+remotePath)
+	}
+	if *localImage {
+		if err := stageLocalImage(resolved.Host); err != nil {
+			fmt.Fprintf(os.Stderr, "failed to stage local image: %v\n", err)
+			os.Exit(1)
+		}
+		env = append(env, "VIBEHOST_SKIP_IMAGE_PULL=1")
 	}
 
 	command := bootstrapCommand(bootstrapScript())
@@ -420,6 +437,9 @@ if need_cmd systemctl; then
 fi
 
 pull_image() {
+  if [ -n "${VIBEHOST_SKIP_IMAGE_PULL:-}" ]; then
+    return 0
+  fi
   image="$1"
   if [ -z "$image" ]; then
     return 0
@@ -683,6 +703,61 @@ func promptDelete(app string) bool {
 	}
 	input = strings.TrimSpace(strings.ToLower(input))
 	return input == "y" || input == "yes"
+}
+
+func isDevRun() bool {
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return strings.Contains(os.Args[0], "go-build")
+	}
+	if info.Path == "command-line-arguments" {
+		return true
+	}
+	return strings.Contains(os.Args[0], "go-build")
+}
+
+func stageLocalImage(host string) error {
+	if _, err := exec.LookPath("docker"); err != nil {
+		return fmt.Errorf("docker is required to build the image locally")
+	}
+	tag := "vibehost:dev"
+	buildCmd := exec.Command("docker", "build", "-t", tag, ".")
+	buildCmd.Stdout = os.Stdout
+	buildCmd.Stderr = os.Stderr
+	if err := buildCmd.Run(); err != nil {
+		return err
+	}
+	sshArgs := sshcmd.BuildArgs(host, []string{"docker", "load"}, false)
+	loadCmd := exec.Command("ssh", sshArgs...)
+	loadCmd.Env = normalizedSshEnv()
+	loadCmd.Stdout = os.Stdout
+	loadCmd.Stderr = os.Stderr
+	loadIn, err := loadCmd.StdinPipe()
+	if err != nil {
+		return err
+	}
+	saveCmd := exec.Command("docker", "save", tag)
+	saveCmd.Stdout = loadIn
+	saveCmd.Stderr = os.Stderr
+	if err := loadCmd.Start(); err != nil {
+		_ = loadIn.Close()
+		return err
+	}
+	if err := saveCmd.Run(); err != nil {
+		_ = loadIn.Close()
+		_ = loadCmd.Wait()
+		return err
+	}
+	_ = loadIn.Close()
+	if err := loadCmd.Wait(); err != nil {
+		return err
+	}
+	tagArgs := sshcmd.BuildArgs(host, []string{"docker", "tag", tag, "vibehost:latest"}, false)
+	tagCmd := exec.Command("ssh", tagArgs...)
+	tagCmd.Env = normalizedSshEnv()
+	tagCmd.Stdout = os.Stdout
+	tagCmd.Stderr = os.Stderr
+	return tagCmd.Run()
 }
 
 func stageLocalServerBinary(host string, localPath string) (string, error) {
