@@ -1,3 +1,10 @@
+---
+name: web-service
+description: Help run a web service under systemd, including ports and health checks.
+metadata:
+  short-description: Web service
+---
+
 # web-service
 
 Purpose: help set up a web app inside the container with a stable systemd service and port 8080 mapping.

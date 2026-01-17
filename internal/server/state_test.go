@@ -53,3 +53,19 @@ func TestStateLoadSave(t *testing.T) {
 		t.Fatalf("expected saved port %d, got %d (ok=%v)", basePort, port, ok)
 	}
 }
+
+func TestStateRemoveApp(t *testing.T) {
+	state := State{Ports: map[string]int{
+		"app-a": 8080,
+		"app-b": 8081,
+	}}
+	if removed := state.RemoveApp("missing"); removed {
+		t.Fatalf("expected missing app to return false")
+	}
+	if removed := state.RemoveApp("app-a"); !removed {
+		t.Fatalf("expected existing app to be removed")
+	}
+	if _, ok := state.Ports["app-a"]; ok {
+		t.Fatalf("expected app-a to be removed")
+	}
+}

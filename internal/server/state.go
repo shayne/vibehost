@@ -93,6 +93,17 @@ func (s *State) SetPort(app string, port int) {
 	s.Ports[app] = port
 }
 
+func (s *State) RemoveApp(app string) bool {
+	if s.Ports == nil {
+		return false
+	}
+	if _, ok := s.Ports[app]; !ok {
+		return false
+	}
+	delete(s.Ports, app)
+	return true
+}
+
 func statePath() (string, error) {
 	configHome := os.Getenv("XDG_CONFIG_HOME")
 	if configHome == "" {

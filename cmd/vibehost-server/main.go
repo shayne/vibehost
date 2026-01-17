@@ -29,7 +29,7 @@ func main() {
 	}
 
 	if fs.NArg() < 1 || fs.NArg() > 3 {
-		fmt.Fprintln(os.Stderr, "Usage: vibehost-server [--agent provider] <app> [snapshot|snapshots|restore <snapshot>|shell|port]")
+		fmt.Fprintln(os.Stderr, "Usage: vibehost-server [--agent provider] <app> [snapshot|snapshots|restore <snapshot>|shell|port|delete]")
 		os.Exit(2)
 	}
 	args := fs.Args()
@@ -109,6 +109,20 @@ func main() {
 		for _, tag := range tags {
 			fmt.Fprintf(os.Stdout, "  %s %s\n", app, tag)
 		}
+		return
+	}
+	if action == "delete" {
+		if err := deleteApp(containerName, app, &state, exists); err != nil {
+			fmt.Fprintf(os.Stderr, "failed to delete app: %v\n", err)
+			os.Exit(1)
+		}
+		if stateDirty {
+			if err := server.SaveState(statePath, state); err != nil {
+				fmt.Fprintf(os.Stderr, "failed to save server state: %v\n", err)
+				os.Exit(1)
+			}
+		}
+		fmt.Fprintf(os.Stdout, "Deleted app %s\n", app)
 		return
 	}
 
@@ -208,10 +222,13 @@ func parseAction(args []string) (string, []string, error) {
 	if len(args) == 1 && args[0] == "port" {
 		return "port", nil, nil
 	}
+	if len(args) == 1 && args[0] == "delete" {
+		return "delete", nil, nil
+	}
 	if len(args) == 2 && args[0] == "restore" && strings.TrimSpace(args[1]) != "" {
 		return "restore", []string{strings.TrimSpace(args[1])}, nil
 	}
-	return "", nil, fmt.Errorf("Usage: vibehost-server [--agent provider] <app> [snapshot|snapshots|restore <snapshot>|shell|port]")
+	return "", nil, fmt.Errorf("Usage: vibehost-server [--agent provider] <app> [snapshot|snapshots|restore <snapshot>|shell|port|delete]")
 }
 
 func resolvePort(state *server.State, app string, containerName string, exists bool) (int, bool, error) {
@@ -425,6 +442,37 @@ func dockerExecArgs(name string, agentArgs []string, tty bool, env map[string]st
 
 func snapshotRepo(app string) string {
 	return fmt.Sprintf("vibehost-snapshot-%s", app)
+}
+
+func deleteApp(containerName string, app string, state *server.State, exists bool) error {
+	if exists {
+		cmd := exec.Command("docker", "rm", "-f", containerName)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		if err := cmd.Run(); err != nil {
+			return err
+		}
+	}
+	tags, err := listSnapshots(app)
+	if err != nil {
+		return err
+	}
+	if len(tags) > 0 {
+		repo := snapshotRepo(app)
+		for _, tag := range tags {
+			ref := fmt.Sprintf("%s:%s", repo, tag)
+			cmd := exec.Command("docker", "rmi", "-f", ref)
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+			if err := cmd.Run(); err != nil {
+				return err
+			}
+		}
+	}
+	if state != nil {
+		state.RemoveApp(app)
+	}
+	return nil
 }
 
 func createSnapshot(containerName string, app string) (string, error) {

@@ -1,3 +1,10 @@
+---
+name: background-service
+description: Help run a long-lived background process under systemd.
+metadata:
+  short-description: Systemd background service
+---
+
 # background-service
 
 Purpose: help run a long-lived background process under systemd.

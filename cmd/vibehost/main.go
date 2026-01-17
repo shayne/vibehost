@@ -1,12 +1,14 @@
 package main
 
 import (
+	"bufio"
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
 	"encoding/hex"
 	"flag"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -27,7 +29,7 @@ import (
 func main() {
 	args := os.Args[1:]
 	if len(args) < 1 {
-		fmt.Fprintln(os.Stderr, "Usage: vibehost [--agent provider] <app> | vibehost [--agent provider] <app>@<host> | vibehost [--agent provider] <app> snapshot | vibehost [--agent provider] <app> snapshots | vibehost [--agent provider] <app> restore <snapshot> | vibehost <app> shell | vibehost bootstrap [<host>] | vibehost config [options]")
+		fmt.Fprintln(os.Stderr, "Usage: vibehost [--agent provider] <app> | vibehost [--agent provider] <app>@<host> | vibehost [--agent provider] <app> snapshot | vibehost [--agent provider] <app> snapshots | vibehost [--agent provider] <app> restore <snapshot> | vibehost <app> shell | vibehost <app> --delete [-y] | vibehost bootstrap [<host>] | vibehost config [options]")
 		return
 	}
 
@@ -43,6 +45,9 @@ func main() {
 	fs := flag.NewFlagSet("vibehost", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
 	agentOverride := fs.String("agent", "", "agent provider override (codex, claude, gemini)")
+	deleteApp := fs.Bool("delete", false, "delete app container and snapshots")
+	deleteYes := fs.Bool("y", false, "confirm destructive actions")
+	deleteYesLong := fs.Bool("yes", false, "confirm destructive actions")
 
 	if err := fs.Parse(args); err != nil {
 		os.Exit(2)
@@ -50,7 +55,7 @@ func main() {
 
 	remaining := fs.Args()
 	if len(remaining) < 1 || len(remaining) > 3 {
-		fmt.Fprintln(os.Stderr, "Usage: vibehost [--agent provider] <app> | vibehost [--agent provider] <app>@<host> | vibehost [--agent provider] <app> snapshot | vibehost [--agent provider] <app> snapshots | vibehost [--agent provider] <app> restore <snapshot> | vibehost <app> shell | vibehost bootstrap [<host>] | vibehost config [options]")
+		fmt.Fprintln(os.Stderr, "Usage: vibehost [--agent provider] <app> | vibehost [--agent provider] <app>@<host> | vibehost [--agent provider] <app> snapshot | vibehost [--agent provider] <app> snapshots | vibehost [--agent provider] <app> restore <snapshot> | vibehost <app> shell | vibehost <app> --delete [-y] | vibehost bootstrap [<host>] | vibehost config [options]")
 		os.Exit(2)
 	}
 
@@ -75,6 +80,20 @@ func main() {
 			os.Exit(2)
 		}
 		actionArgs = []string{"restore", remaining[2]}
+	}
+	if *deleteApp {
+		if len(actionArgs) != 0 {
+			fmt.Fprintln(os.Stderr, "Usage: vibehost [--delete] <app> | vibehost [--agent provider] <app> snapshot | vibehost [--agent provider] <app> snapshots | vibehost [--agent provider] <app> restore <snapshot> | vibehost <app> shell")
+			os.Exit(2)
+		}
+		confirmed := *deleteYes || *deleteYesLong
+		if !confirmed {
+			if !promptDelete(targetArg) {
+				fmt.Fprintln(os.Stdout, "delete cancelled")
+				return
+			}
+		}
+		actionArgs = []string{"delete"}
 	}
 
 	cfg, _, err := config.Load()
@@ -604,6 +623,17 @@ func openURL(raw string) error {
 		}
 	}
 	return fmt.Errorf("no opener available")
+}
+
+func promptDelete(app string) bool {
+	reader := bufio.NewReader(os.Stdin)
+	fmt.Fprintf(os.Stdout, "Delete %s and all snapshots? [y/N]: ", app)
+	input, err := reader.ReadString('\n')
+	if err != nil && err != io.EOF {
+		return false
+	}
+	input = strings.TrimSpace(strings.ToLower(input))
+	return input == "y" || input == "yes"
 }
 
 func normalizedSshEnv() []string {

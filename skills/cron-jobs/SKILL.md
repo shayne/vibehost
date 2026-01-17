@@ -1,3 +1,10 @@
+---
+name: cron-jobs
+description: Help set up and manage cron-based jobs for recurring tasks.
+metadata:
+  short-description: Cron jobs
+---
+
 # cron-jobs
 
 Purpose: help schedule recurring jobs inside the container using cron.
