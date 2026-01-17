@@ -59,6 +59,20 @@ printf '\nexit\n' | timeout 45s vibehost "$app_name" shell >/dev/null
 
 container="vibehost-$app_name"
 
+wait_for_container() {
+  local deadline
+  deadline="$(date +%s)"
+  deadline=$((deadline + 20))
+  while [ "$(date +%s)" -lt "$deadline" ]; do
+    if docker exec "$container" sh -c "true" >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 1
+  done
+  echo "timed out waiting for $container to be ready" >&2
+  return 1
+}
+
 docker port "$container" 8080/tcp >/dev/null
 
 if ! docker exec "$container" sh -c 'ps -p 1 -o comm= | tr -d " " | grep -Eq "(systemd|init)"'; then
@@ -73,8 +87,21 @@ for tool in codex claude gemini; do
   fi
 done
 
+docker exec "$container" sh -c "printf 'before' > /tmp/vibehost-snap-test"
+
 vibehost "$app_name" snapshot >/dev/null
+
+docker exec "$container" sh -c "printf 'after' > /tmp/vibehost-snap-test"
+
 vibehost "$app_name" restore latest >/dev/null
+
+wait_for_container
+
+restored_contents="$(docker exec "$container" sh -c "cat /tmp/vibehost-snap-test" 2>/dev/null || true)"
+if [ "$restored_contents" != "before" ]; then
+  echo "expected snapshot restore to revert test file in $container" >&2
+  exit 1
+fi
 
 printf '\nexit\n' | timeout 45s vibehost "$app_name" shell >/dev/null
 

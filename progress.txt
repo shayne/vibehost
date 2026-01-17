@@ -35,3 +35,9 @@ ok  	vibehost/internal/target	(cached) and \.
 2026-01-17: Marked R1-R3 and related acceptance checklist items as complete in PRD (client CLI, server prompt/create, and port mapping). Ran `mise exec -- go test ./...` and `mise exec -- go vet ./...`.
 2026-01-17: Forwarded TERM/COLORTERM into interactive docker exec sessions for reliable TTY/PTY behavior; added docker exec arg tests. Ran `mise exec -- go test ./...` and `mise exec -- go vet ./...`.
 2026-01-17: Extended bin/vibehost-e2e-local to verify systemd PID 1 and agent CLI wrappers in the container. Ran `mise exec -- go test ./...` and `mise exec -- go vet ./...`.
+2026-01-17: Expanded bin/vibehost-e2e-local to verify snapshot/restore by reverting a test file and added readiness wait for restored container. Ran \?   	vibehost/cmd/vibehost	[no test files]
+ok  	vibehost/cmd/vibehost-server	(cached)
+ok  	vibehost/internal/config	(cached)
+ok  	vibehost/internal/server	(cached)
+ok  	vibehost/internal/sshcmd	(cached)
+ok  	vibehost/internal/target	(cached) and \.

@@ -176,6 +176,7 @@ Progress Notes:
 - Added tmux-based session wrapping for agent and shell commands to support multiple concurrent sessions.
 - Forwarded terminal environment variables into interactive docker exec sessions to ensure full-screen TUIs and arrow keys behave correctly.
 - Extended the local E2E script to verify systemd is PID 1 and agent CLI wrappers are present in the container.
+- Extended the local E2E script to snapshot a test file, restore, and assert the file reverted.
 
 ### Phase 4: Local E2E Test (localhost SSH)
 - Treat the VM as both client + server.
@@ -226,8 +227,8 @@ Progress Notes:
 - [x] Mapping is stable across restarts and stored in server state.
 
 ### Snapshot/Restore
-- [ ] `vibehost <app> snapshot` creates a restorable snapshot.
-- [ ] `vibehost <app> restore <snapshot>` reverts container state.
+- [x] `vibehost <app> snapshot` creates a restorable snapshot.
+- [x] `vibehost <app> restore <snapshot>` reverts container state.
 - [x] Snapshot list shows timestamps and app name.
 
 ### E2E (Localhost SSH)
