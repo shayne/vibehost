@@ -28,3 +28,5 @@ ok  	vibehost/internal/target	(cached) and \.
 2026-01-17: Avoided forcing TTY on docker exec when stdin/stdout are non-interactive; added exec arg tests. Ran `mise exec -- go test ./...` and `mise exec -- go vet ./...`.
 2026-01-17: Added bin/vibehost-e2e-local smoke test script to build/install binaries, run non-interactive shell session over SSH, validate port mapping, and exercise snapshot/restore. Ran `mise exec -- go test ./...` and `mise exec -- go vet ./...`.
 2026-01-17: Synced server port state from existing vibehost containers on startup to recover missing state file allocations. Ran `mise exec -- go test ./...` and `mise exec -- go vet ./...`.
+2026-01-17: Made SSH TTY allocation conditional for interactive sessions and added sshcmd tests. Ran `mise exec -- go test ./...` and `mise exec -- go vet ./...`.
+2026-01-17: Added tests for server app creation prompt to ensure default-yes behavior on empty/EOF input. Ran `mise exec -- go test ./...` and `mise exec -- go vet ./...`.

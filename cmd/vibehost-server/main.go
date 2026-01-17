@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"regexp"
@@ -208,10 +209,14 @@ func parseAction(args []string) (string, []string, error) {
 }
 
 func promptCreate(app string) bool {
-	reader := bufio.NewReader(os.Stdin)
-	fmt.Fprintf(os.Stdout, "App %s does not exist. Create? [Y/n]: ", app)
+	return promptCreateWithReader(app, os.Stdin, os.Stdout)
+}
+
+func promptCreateWithReader(app string, in io.Reader, out io.Writer) bool {
+	reader := bufio.NewReader(in)
+	fmt.Fprintf(out, "App %s does not exist. Create? [Y/n]: ", app)
 	input, err := reader.ReadString('\n')
-	if err != nil {
+	if err != nil && err != io.EOF {
 		return false
 	}
 	input = strings.TrimSpace(strings.ToLower(input))
