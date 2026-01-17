@@ -54,3 +54,9 @@ ok  	vibehost/internal/target	(cached) and \.
 2026-01-17: Added curl | bash client install script (bin/vibehost-install) with env-configurable install dir/binary name and GitHub release downloads. Ran `mise run test` and `mise run vet`.
 2026-01-17: Added `vibehost bootstrap` to validate Ubuntu, install Docker, install `vibehost-server`, and warn about docker group membership for non-root users; added host resolution helper and tests. Ran `mise run test` and `mise run vet`.
 2026-01-17: Implemented client localhost reverse proxy via SSH local port forwarding, added server port lookup action, and detected local port conflicts for interactive sessions. Ran `mise run test` and `mise run vet`.
+2026-01-17: Added VIBEHOST_APP_PORT/VIBEHOST_HOST_PORT env vars to container create/restore paths so apps can read internal/host ports. Ran ?   	vibehost/cmd/vibehost	[no test files]
+ok  	vibehost/cmd/vibehost-server	(cached)
+ok  	vibehost/internal/config	(cached)
+ok  	vibehost/internal/server	(cached)
+ok  	vibehost/internal/sshcmd	(cached)
+ok  	vibehost/internal/target	(cached) and .

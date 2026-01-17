@@ -84,7 +84,7 @@ Building and running "vibe-coded" apps with agent assistance typically requires 
   - Acceptance: If the SSH user is non-root, warn about sudo usage and ensure Docker group membership; prompt to `newgrp docker` or reconnect as needed.
 - [x] R10: While `vibehost <app>` is running, the client provides a localhost reverse proxy to the app's host port mapping.
   - Acceptance: Visiting `http://localhost:<host-port>` on the client reaches the app running in the container without manual tunnel setup.
-- [ ] R11: The container knows its internal and externally reachable ports via environment variables.
+- [x] R11: The container knows its internal and externally reachable ports via environment variables.
   - Acceptance: `VIBEHOST_APP_PORT=8080` and `VIBEHOST_HOST_PORT=<host-port>` are available inside the container.
 - [ ] R12: `xdg-open` calls inside the container are forwarded to the client machine.
   - Acceptance: A call to `xdg-open http://localhost:<host-port>` inside the container opens the user’s local browser.
@@ -239,6 +239,7 @@ Progress Notes:
 - Added a curl | bash client install script with configurable install dir/binary name and GitHub release downloads.
 - Added `vibehost bootstrap` to validate Ubuntu over SSH, install Docker, install `vibehost-server`, and warn about docker group membership for non-root users.
 - Implemented client-side localhost reverse proxy via SSH local port forwarding, added server port query action, and detect local port conflicts for interactive sessions.
+- Passed `VIBEHOST_APP_PORT` and `VIBEHOST_HOST_PORT` into containers on create/restore so apps can read internal and host ports from env.
 
 ### Phase 4: Local E2E Test (localhost SSH)
 - Treat the VM as both client + server.
@@ -288,6 +289,7 @@ Progress Notes:
 - [x] First app maps container 8080 -> host 8080.
 - [x] Second app maps container 8080 -> host 8081.
 - [x] Mapping is stable across restarts and stored in server state.
+- [x] Container exports `VIBEHOST_APP_PORT` and `VIBEHOST_HOST_PORT` for app use.
 
 ### Localhost Reverse Proxy
 - [x] When `vibehost <app>` is active, the client exposes `http://localhost:<host-port>` for the app.

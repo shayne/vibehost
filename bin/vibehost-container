@@ -1,0 +1,115 @@
+#!/bin/sh
+set -eu
+
+usage() {
+  echo "Usage: vibehost-container snapshot|snapshots|restore <snapshot>" >&2
+  exit 2
+}
+
+require_env() {
+  if [ -z "${VIBEHOST_APP:-}" ] || [ -z "${VIBEHOST_CONTAINER:-}" ] || [ -z "${VIBEHOST_PORT:-}" ]; then
+    echo "vibehost-container requires VIBEHOST_APP, VIBEHOST_CONTAINER, and VIBEHOST_PORT" >&2
+    exit 1
+  fi
+}
+
+snapshot_repo() {
+  printf "vibehost-snapshot-%s" "$VIBEHOST_APP"
+}
+
+list_tags() {
+  docker images --format '{{.Tag}}' "$(snapshot_repo)" 2>/dev/null | sed '/^$/d; /^<none>$/d'
+}
+
+latest_ref() {
+  tags="$(list_tags | sort)"
+  if [ -z "$tags" ]; then
+    echo "no snapshots found for $VIBEHOST_APP" >&2
+    exit 1
+  fi
+  last_tag=$(printf "%s\n" "$tags" | tail -n 1)
+  printf "%s:%s" "$(snapshot_repo)" "$last_tag"
+}
+
+resolve_ref() {
+  name="$1"
+  if [ -z "$name" ]; then
+    echo "snapshot name is required" >&2
+    exit 1
+  fi
+  if [ "$name" = "latest" ]; then
+    latest_ref
+    return
+  fi
+  case "$name" in
+    *:*) printf "%s" "$name" ;;
+    *) printf "%s:%s" "$(snapshot_repo)" "$name" ;;
+  esac
+}
+
+do_snapshot() {
+  tag=$(date -u +%Y%m%d-%H%M%S)
+  ref="$(snapshot_repo):$tag"
+  docker commit "$VIBEHOST_CONTAINER" "$ref"
+  echo "Snapshot created: $ref"
+}
+
+do_snapshots() {
+  tags="$(list_tags | sort)"
+  if [ -z "$tags" ]; then
+    echo "No snapshots found for $VIBEHOST_APP"
+    return
+  fi
+  echo "Snapshots for $VIBEHOST_APP:"
+  printf "%s\n" "$tags" | while IFS= read -r tag; do
+    [ -n "$tag" ] && echo "  $VIBEHOST_APP $tag"
+  done
+}
+
+do_restore() {
+  ref="$(resolve_ref "$1")"
+  docker rm -f "$VIBEHOST_CONTAINER" >/dev/null 2>&1 || true
+  docker run -d \
+    --name "$VIBEHOST_CONTAINER" \
+    -p "$VIBEHOST_PORT:8080" \
+    --privileged \
+    --tmpfs /run \
+    --tmpfs /run/lock \
+    -v /sys/fs/cgroup:/sys/fs/cgroup:rw \
+    -v /var/run/docker.sock:/var/run/docker.sock \
+    -e "VIBEHOST_APP_PORT=8080" \
+    -e "VIBEHOST_HOST_PORT=$VIBEHOST_PORT" \
+    -e "VIBEHOST_APP=$VIBEHOST_APP" \
+    -e "VIBEHOST_CONTAINER=$VIBEHOST_CONTAINER" \
+    -e "VIBEHOST_PORT=$VIBEHOST_PORT" \
+    "$ref" \
+    /sbin/init
+  echo "Restore started for $VIBEHOST_APP from $ref"
+}
+
+main() {
+  require_env
+  if [ $# -lt 1 ]; then
+    usage
+  fi
+
+  case "$1" in
+    snapshot)
+      [ $# -eq 1 ] || usage
+      do_snapshot
+      ;;
+    snapshots)
+      [ $# -eq 1 ] || usage
+      do_snapshots
+      ;;
+    restore)
+      [ $# -eq 2 ] || usage
+      do_restore "$2"
+      ;;
+    *)
+      usage
+      ;;
+  esac
+}
+
+main "$@"
