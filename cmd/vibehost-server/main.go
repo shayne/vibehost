@@ -7,8 +7,10 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"vibehost/internal/server"
 )
@@ -23,14 +25,20 @@ func main() {
 		os.Exit(2)
 	}
 
-	if fs.NArg() != 1 {
-		fmt.Fprintln(os.Stderr, "Usage: vibehost-server [--agent provider] <app>")
+	if fs.NArg() < 1 || fs.NArg() > 3 {
+		fmt.Fprintln(os.Stderr, "Usage: vibehost-server [--agent provider] <app> [snapshot|restore <snapshot>]")
+		os.Exit(2)
+	}
+	args := fs.Args()
+	app := strings.TrimSpace(args[0])
+	if app == "" {
+		fmt.Fprintln(os.Stderr, "app name is required")
 		os.Exit(2)
 	}
 
-	app := strings.TrimSpace(fs.Arg(0))
-	if app == "" {
-		fmt.Fprintln(os.Stderr, "app name is required")
+	action, actionArgs, err := parseAction(args[1:])
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err.Error())
 		os.Exit(2)
 	}
 
@@ -58,6 +66,20 @@ func main() {
 		os.Exit(1)
 	}
 
+	if action == "snapshot" {
+		if !exists {
+			fmt.Fprintln(os.Stderr, "cannot snapshot: app container does not exist")
+			os.Exit(1)
+		}
+		ref, err := createSnapshot(containerName, app)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "failed to create snapshot: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Fprintf(os.Stdout, "Snapshot created: %s\n", ref)
+		return
+	}
+
 	port, ok := state.PortForApp(app)
 	stateDirty := false
 	if exists && !ok {
@@ -74,6 +96,26 @@ func main() {
 	if port == 0 {
 		port = state.AssignPort(app)
 		stateDirty = true
+	}
+
+	if action == "restore" {
+		ref, err := resolveSnapshotRef(app, actionArgs[0])
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "failed to resolve snapshot: %v\n", err)
+			os.Exit(1)
+		}
+		if err := restoreSnapshot(containerName, port, ref); err != nil {
+			fmt.Fprintf(os.Stderr, "failed to restore snapshot: %v\n", err)
+			os.Exit(1)
+		}
+		if stateDirty {
+			if err := server.SaveState(statePath, state); err != nil {
+				fmt.Fprintf(os.Stderr, "failed to save server state: %v\n", err)
+				os.Exit(1)
+			}
+		}
+		fmt.Fprintf(os.Stdout, "Restored app %s from %s\n", app, ref)
+		return
 	}
 
 	if !exists {
@@ -114,6 +156,19 @@ func main() {
 		fmt.Fprintf(os.Stderr, "failed to exec shell: %v\n", err)
 		os.Exit(1)
 	}
+}
+
+func parseAction(args []string) (string, []string, error) {
+	if len(args) == 0 {
+		return "", nil, nil
+	}
+	if len(args) == 1 && args[0] == "snapshot" {
+		return "snapshot", nil, nil
+	}
+	if len(args) == 2 && args[0] == "restore" && strings.TrimSpace(args[1]) != "" {
+		return "restore", []string{strings.TrimSpace(args[1])}, nil
+	}
+	return "", nil, fmt.Errorf("Usage: vibehost-server [--agent provider] <app> [snapshot|restore <snapshot>]")
 }
 
 func promptCreate(app string) bool {
@@ -176,17 +231,7 @@ func containerPort(name string) (int, bool, error) {
 }
 
 func dockerRun(name string, port int) error {
-	args := []string{
-		"run",
-		"-d",
-		"--name",
-		name,
-		"-p",
-		fmt.Sprintf("%d:8080", port),
-		defaultImage,
-		"sleep",
-		"infinity",
-	}
+	args := dockerRunArgs(name, port, defaultImage)
 	cmd := exec.Command("docker", args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -210,6 +255,87 @@ func dockerExec(name string, agentArgs []string) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
+}
+
+func snapshotRepo(app string) string {
+	return fmt.Sprintf("vibehost-snapshot-%s", app)
+}
+
+func createSnapshot(containerName string, app string) (string, error) {
+	repo := snapshotRepo(app)
+	tag := time.Now().UTC().Format("20060102-150405")
+	ref := fmt.Sprintf("%s:%s", repo, tag)
+	cmd := exec.Command("docker", "commit", containerName, ref)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return "", err
+	}
+	return ref, nil
+}
+
+func resolveSnapshotRef(app string, name string) (string, error) {
+	normalized := strings.TrimSpace(name)
+	if normalized == "" {
+		return "", fmt.Errorf("snapshot name is required")
+	}
+	if normalized == "latest" {
+		return latestSnapshotRef(app)
+	}
+	if strings.Contains(normalized, ":") {
+		return normalized, nil
+	}
+	return fmt.Sprintf("%s:%s", snapshotRepo(app), normalized), nil
+}
+
+func latestSnapshotRef(app string) (string, error) {
+	repo := snapshotRepo(app)
+	out, err := exec.Command("docker", "images", "--format", "{{.Tag}}", repo).Output()
+	if err != nil {
+		return "", err
+	}
+	var tags []string
+	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		tag := strings.TrimSpace(line)
+		if tag == "" || tag == "<none>" {
+			continue
+		}
+		tags = append(tags, tag)
+	}
+	if len(tags) == 0 {
+		return "", fmt.Errorf("no snapshots found for %s", app)
+	}
+	sort.Strings(tags)
+	return fmt.Sprintf("%s:%s", repo, tags[len(tags)-1]), nil
+}
+
+func restoreSnapshot(containerName string, port int, snapshotRef string) error {
+	_ = exec.Command("docker", "rm", "-f", containerName).Run()
+	args := dockerRunArgs(containerName, port, snapshotRef)
+	cmd := exec.Command("docker", args...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+func dockerRunArgs(name string, port int, image string) []string {
+	return []string{
+		"run",
+		"-d",
+		"--name",
+		name,
+		"-p",
+		fmt.Sprintf("%d:8080", port),
+		"--privileged",
+		"--tmpfs",
+		"/run",
+		"--tmpfs",
+		"/run/lock",
+		"-v",
+		"/sys/fs/cgroup:/sys/fs/cgroup:rw",
+		image,
+		"/sbin/init",
+	}
 }
 
 func agentCommand(provider string) ([]string, error) {

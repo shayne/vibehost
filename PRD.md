@@ -156,6 +156,7 @@ Progress Notes:
 - Wired agent provider selection through the client config into `vibehost-server`, which now launches provider commands (`codex`, `claude`, `gemini`) inside the container.
 - Added client/server snapshot and restore commands that create Docker snapshot images and restore from named or `latest` snapshots.
 - Added a base container Dockerfile (Ubuntu + systemd + Node.js) and agent CLI wrappers that invoke `npx` for Codex, Claude Code, and Gemini.
+- Updated server container run/restore flow to boot systemd (`/sbin/init`) with cgroup/tmpfs mounts so background services can run.
 
 ### Phase 4: Local E2E Test (localhost SSH)
 - Treat the VM as both client + server.
