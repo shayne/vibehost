@@ -57,7 +57,21 @@ vibehost config --host localhost --agent "$agent" >/dev/null
 
 printf '\nexit\n' | timeout 45s vibehost "$app_name" shell >/dev/null
 
-docker port "vibehost-$app_name" 8080/tcp >/dev/null
+container="vibehost-$app_name"
+
+docker port "$container" 8080/tcp >/dev/null
+
+if ! docker exec "$container" sh -c 'ps -p 1 -o comm= | tr -d " " | grep -Eq "(systemd|init)"'; then
+  echo "expected PID 1 to be systemd/init in $container" >&2
+  exit 1
+fi
+
+for tool in codex claude gemini; do
+  if ! docker exec "$container" sh -c "command -v $tool >/dev/null 2>&1"; then
+    echo "expected $tool to be installed in $container" >&2
+    exit 1
+  fi
+done
 
 vibehost "$app_name" snapshot >/dev/null
 vibehost "$app_name" restore latest >/dev/null

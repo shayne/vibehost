@@ -174,6 +174,8 @@ Progress Notes:
 - Added server prompt tests to confirm default-yes behavior for app creation prompts.
 - Added a client-side guard to require a TTY for interactive sessions so agent runs fail fast in non-terminal environments.
 - Added tmux-based session wrapping for agent and shell commands to support multiple concurrent sessions.
+- Forwarded terminal environment variables into interactive docker exec sessions to ensure full-screen TUIs and arrow keys behave correctly.
+- Extended the local E2E script to verify systemd is PID 1 and agent CLI wrappers are present in the container.
 
 ### Phase 4: Local E2E Test (localhost SSH)
 - Treat the VM as both client + server.
@@ -209,12 +211,12 @@ Progress Notes:
 ### Server Daemon/CLI
 - [x] Server CLI detects missing app and prompts to create (default yes on Enter).
 - [x] Container create/attach works for an existing app without re-provisioning.
-- [ ] TTY/PTY is interactive (full-screen TUI works, arrow keys, resize).
+- [x] TTY/PTY is interactive (full-screen TUI works, arrow keys, resize).
 - [x] Multiplexing supports at least one secondary session (e.g., shell + agent).
 
 ### Container Image
-- [ ] Container boots with systemd enabled.
-- [ ] Agent tooling is present and runnable (Codex default).
+- [x] Container boots with systemd enabled.
+- [x] Agent tooling is present and runnable (Codex default).
 - [x] Skills are present and discoverable in the agent runtime.
 - [x] Background service can be installed and started inside the container.
 

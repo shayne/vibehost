@@ -33,3 +33,5 @@ ok  	vibehost/internal/target	(cached) and \.
 2026-01-17: Required a TTY for interactive client sessions so non-terminal runs fail fast with a clear error. Ran `mise exec -- go test ./...` and `mise exec -- go vet ./...`.
 2026-01-17: Wrapped agent and shell sessions in tmux inside the container to enable concurrent multiplexed sessions; added tmux install and tests. Ran `mise exec -- go test ./...` and `mise exec -- go vet ./...`.
 2026-01-17: Marked R1-R3 and related acceptance checklist items as complete in PRD (client CLI, server prompt/create, and port mapping). Ran `mise exec -- go test ./...` and `mise exec -- go vet ./...`.
+2026-01-17: Forwarded TERM/COLORTERM into interactive docker exec sessions for reliable TTY/PTY behavior; added docker exec arg tests. Ran `mise exec -- go test ./...` and `mise exec -- go vet ./...`.
+2026-01-17: Extended bin/vibehost-e2e-local to verify systemd PID 1 and agent CLI wrappers in the container. Ran `mise exec -- go test ./...` and `mise exec -- go vet ./...`.
