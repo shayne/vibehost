@@ -234,7 +234,7 @@ Progress Notes:
 ### E2E (Localhost SSH)
 - [ ] From clean VM state, `vibehost myapp` prompts to create app, defaults yes.
 - [ ] User lands in agent TUI and can execute a command successfully.
-- [ ] Web app on 8080 inside container is reachable on host mapped port.
+- [x] Web app on 8080 inside container is reachable on host mapped port.
 - [x] E2E test script runs non-interactively and exits 0.
 
 ## Architecture Diagram (text)

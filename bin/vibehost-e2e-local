@@ -16,6 +16,7 @@ require_cmd ssh
 require_cmd docker
 require_cmd go
 require_cmd timeout
+require_cmd curl
 
 if ! ssh -o BatchMode=yes -o ConnectTimeout=5 localhost true >/dev/null 2>&1; then
   echo "ssh to localhost failed; ensure sshd is running and localhost is configured for key auth" >&2
@@ -74,6 +75,24 @@ wait_for_container() {
 }
 
 docker port "$container" 8080/tcp >/dev/null
+
+start_health_server() {
+  docker exec "$container" sh -c "nohup node -e 'const http=require(\"http\");http.createServer((req,res)=>{if(req.url===\"/health\"){res.end(\"ok\");return;}res.end(\"hello\");}).listen(8080,\"0.0.0.0\");' >/tmp/vibehost-health.log 2>&1 &"
+}
+
+start_health_server
+
+host_port="$(docker port "$container" 8080/tcp | head -n1 | sed -E 's/.*:([0-9]+)$/\1/')"
+if [ -z "$host_port" ]; then
+  echo "failed to resolve host port for $container 8080/tcp" >&2
+  exit 1
+fi
+
+health_body="$(curl -fsS "http://localhost:${host_port}/health" || true)"
+if [ "$health_body" != "ok" ]; then
+  echo "expected /health to respond over host port ${host_port} for $container" >&2
+  exit 1
+fi
 
 if ! docker exec "$container" sh -c 'ps -p 1 -o comm= | tr -d " " | grep -Eq "(systemd|init)"'; then
   echo "expected PID 1 to be systemd/init in $container" >&2
