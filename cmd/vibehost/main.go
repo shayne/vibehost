@@ -16,9 +16,9 @@ import (
 
 	"golang.org/x/term"
 
-	"vibehost/internal/config"
-	"vibehost/internal/sshcmd"
-	"vibehost/internal/target"
+	"github.com/shayne/vibehost/internal/config"
+	"github.com/shayne/vibehost/internal/sshcmd"
+	"github.com/shayne/vibehost/internal/target"
 )
 
 func main() {
@@ -378,7 +378,7 @@ if [ "$(id -u)" -ne 0 ]; then
   fi
 fi
 
-VIBEHOST_SERVER_REPO="${VIBEHOST_SERVER_REPO:-vibehost/vibehost}"
+VIBEHOST_SERVER_REPO="${VIBEHOST_SERVER_REPO:-shayne/vibehost}"
 VIBEHOST_SERVER_VERSION="${VIBEHOST_SERVER_VERSION:-latest}"
 VIBEHOST_SERVER_INSTALL_DIR="${VIBEHOST_SERVER_INSTALL_DIR:-/usr/local/bin}"
 VIBEHOST_SERVER_BIN="${VIBEHOST_SERVER_BIN:-vibehost-server}"

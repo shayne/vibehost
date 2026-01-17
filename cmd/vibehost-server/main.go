@@ -15,7 +15,7 @@ import (
 
 	"golang.org/x/term"
 
-	"vibehost/internal/server"
+	"github.com/shayne/vibehost/internal/server"
 )
 
 const defaultImage = "vibehost:latest"

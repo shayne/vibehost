@@ -1,44 +1,64 @@
 package main
 
-import (
-	"bytes"
-	"strings"
-	"testing"
-)
+import "testing"
 
-func TestPromptCreateWithReaderDefaultsYesOnEmptyInput(t *testing.T) {
-	var out bytes.Buffer
-	if !promptCreateWithReader("demo", strings.NewReader("\n"), &out) {
-		t.Fatalf("expected empty input to default to yes")
+func TestTmuxSessionArgsUsesDefaults(t *testing.T) {
+	args := tmuxSessionArgs("", nil)
+	if len(args) < 6 {
+		t.Fatalf("expected tmux args, got %v", args)
 	}
-	if got := out.String(); !strings.Contains(got, "App demo does not exist") {
-		t.Fatalf("expected prompt to mention app name, got %q", got)
+	if args[0] != "tmux" || args[1] != "new-session" {
+		t.Fatalf("unexpected tmux prefix: %v", args[:2])
+	}
+	if args[2] != "-A" || args[3] != "-s" || args[4] != "vibehost-session" {
+		t.Fatalf("unexpected session args: %v", args[:5])
+	}
+	if args[5] != "/bin/bash" {
+		t.Fatalf("expected default command /bin/bash, got %q", args[5])
 	}
 }
 
-func TestPromptCreateWithReaderAcceptsYesVariants(t *testing.T) {
-	cases := []string{"y\n", "Y\n", "yes\n", "YES\n", " Yes \n"}
-	for _, input := range cases {
-		var out bytes.Buffer
-		if !promptCreateWithReader("demo", strings.NewReader(input), &out) {
-			t.Fatalf("expected %q to be accepted", strings.TrimSpace(input))
+func TestTmuxSessionArgsKeepsCommand(t *testing.T) {
+	command := []string{"codex", "--help"}
+	args := tmuxSessionArgs("vibehost-agent", command)
+	if args[0] != "tmux" || args[1] != "new-session" {
+		t.Fatalf("unexpected tmux prefix: %v", args[:2])
+	}
+	if args[4] != "vibehost-agent" {
+		t.Fatalf("expected session name, got %q", args[4])
+	}
+	if args[5] != "codex" || args[6] != "--help" {
+		t.Fatalf("unexpected command args: %v", args[5:])
+	}
+}
+
+func TestDockerExecArgsIncludesEnv(t *testing.T) {
+	args := dockerExecArgs("vibehost-test", []string{"codex"}, true, map[string]string{
+		"COLORTERM": "truecolor",
+		"TERM":      "xterm-256color",
+	})
+	expected := []string{"exec", "-i", "-t", "-e", "COLORTERM=truecolor", "-e", "TERM=xterm-256color", "vibehost-test", "codex"}
+	if len(args) != len(expected) {
+		t.Fatalf("unexpected args length: got %v want %v", args, expected)
+	}
+	for i, value := range expected {
+		if args[i] != value {
+			t.Fatalf("unexpected arg at %d: got %q want %q (args=%v)", i, args[i], value, args)
 		}
 	}
 }
 
-func TestPromptCreateWithReaderRejectsNo(t *testing.T) {
-	cases := []string{"n\n", "no\n", "NO\n", "  no  \n"}
-	for _, input := range cases {
-		var out bytes.Buffer
-		if promptCreateWithReader("demo", strings.NewReader(input), &out) {
-			t.Fatalf("expected %q to be rejected", strings.TrimSpace(input))
-		}
+func TestDockerExecArgsWithoutTTY(t *testing.T) {
+	args := dockerExecArgs("vibehost-test", []string{"bash"}, false, map[string]string{
+		"TERM": "xterm-256color",
+	})
+	expected := []string{"exec", "-i", "-e", "TERM=xterm-256color", "vibehost-test", "bash"}
+	if len(args) != len(expected) {
+		t.Fatalf("unexpected args length: got %v want %v", args, expected)
 	}
-}
-
-func TestPromptCreateWithReaderEOFAcceptsDefault(t *testing.T) {
-	var out bytes.Buffer
-	if !promptCreateWithReader("demo", strings.NewReader(""), &out) {
-		t.Fatalf("expected EOF to default to yes")
+	for i, value := range expected {
+		if args[i] != value {
+			t.Fatalf("unexpected arg at %d: got %q want %q (args=%v)", i, args[i], value, args)
+		}
 	}
 }

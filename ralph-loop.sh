@@ -17,7 +17,7 @@ mkdir -p .logs
 rm -f "$PROMISE_FILE"
 
 for ((i = 1; i <= $1; i++)); do
-  npx -y @openai/codex -- --dangerously-bypass-approvals-and-sandbox exec <<'EOF' 2>&1 | tee -a ".logs/iterations.log"
+  npx -y @openai/codex --dangerously-bypass-approvals-and-sandbox exec <<'EOF' 2>&1 | tee -a ".logs/iterations.log"
 1. Find the highest-priority task based on PRD.md and progress.txt, and implement it.
 2. Run your tests and type checks.
 3. Update the PRD with what was done.

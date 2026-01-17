@@ -11,6 +11,9 @@ run = "go test ./..."
 [tasks.vet]
 run = "go vet ./..."
 
+[tasks.integration]
+run = "bin/vibehost-integration"
+
 [tasks."build:image"]
 run = "docker build -t vibehost:local ."
 

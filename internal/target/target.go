@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"vibehost/internal/config"
+	"github.com/shayne/vibehost/internal/config"
 )
 
 type Resolved struct {
