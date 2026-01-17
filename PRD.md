@@ -86,7 +86,7 @@ Building and running "vibe-coded" apps with agent assistance typically requires 
   - Acceptance: Visiting `http://localhost:<host-port>` on the client reaches the app running in the container without manual tunnel setup.
 - [x] R11: The container knows its internal and externally reachable ports via environment variables.
   - Acceptance: `VIBEHOST_APP_PORT=8080` and `VIBEHOST_HOST_PORT=<host-port>` are available inside the container.
-- [ ] R12: `xdg-open` calls inside the container are forwarded to the client machine.
+- [x] R12: `xdg-open` calls inside the container are forwarded to the client machine.
   - Acceptance: A call to `xdg-open http://localhost:<host-port>` inside the container opens the user’s local browser.
 - [ ] R13: Provide project documentation for users and contributors.
   - Acceptance: `README.md` provides a complete start-to-finish flow from zero setup to:
@@ -240,6 +240,7 @@ Progress Notes:
 - Added `vibehost bootstrap` to validate Ubuntu over SSH, install Docker, install `vibehost-server`, and warn about docker group membership for non-root users.
 - Implemented client-side localhost reverse proxy via SSH local port forwarding, added server port query action, and detect local port conflicts for interactive sessions.
 - Passed `VIBEHOST_APP_PORT` and `VIBEHOST_HOST_PORT` into containers on create/restore so apps can read internal and host ports from env.
+- Implemented xdg-open forwarding via SSH remote socket forwarding, added client-side URL validation and opener, and shipped a container xdg-open wrapper that calls back to the client.
 
 ### Phase 4: Local E2E Test (localhost SSH)
 - Treat the VM as both client + server.
@@ -297,8 +298,8 @@ Progress Notes:
 - [x] Port conflicts on the client are detected and reported.
 
 ### xdg-open Forwarding
-- [ ] `xdg-open` inside the container triggers a client-side open.
-- [ ] URLs are validated/sanitized before forwarding.
+- [x] `xdg-open` inside the container triggers a client-side open.
+- [x] URLs are validated/sanitized before forwarding.
 
 ### Install + Bootstrap
 - [x] `curl | bash` installs the client binary and prints next steps.

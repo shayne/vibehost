@@ -3,26 +3,45 @@ package sshcmd
 import (
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 )
 
 // RemoteArgs builds the remote command executed on the server host.
-func RemoteArgs(app string, agentProvider string, actionArgs []string) []string {
+func RemoteArgs(app string, agentProvider string, actionArgs []string, extraEnv map[string]string) []string {
 	if strings.TrimSpace(agentProvider) == "" {
 		agentProvider = "codex"
 	}
 	remote := []string{"vibehost-server", "--agent", agentProvider, app}
 	remote = append(remote, actionArgs...)
+	entries := map[string]string{}
 	if value := strings.TrimSpace(os.Getenv("VIBEHOST_AGENT_CHECK")); value != "" {
-		prefix := []string{"env", "VIBEHOST_AGENT_CHECK=" + value}
-		return append(prefix, remote...)
+		entries["VIBEHOST_AGENT_CHECK"] = value
 	}
-	return remote
+	for key, value := range extraEnv {
+		if strings.TrimSpace(key) == "" || strings.TrimSpace(value) == "" {
+			continue
+		}
+		entries[key] = value
+	}
+	if len(entries) == 0 {
+		return remote
+	}
+	keys := make([]string, 0, len(entries))
+	for key := range entries {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	prefix := []string{"env"}
+	for _, key := range keys {
+		prefix = append(prefix, key+"="+entries[key])
+	}
+	return append(prefix, remote...)
 }
 
 // BuildArgs builds the ssh argument list for a target host and remote command.
 func BuildArgs(host string, remoteArgs []string, tty bool) []string {
-	return BuildArgsWithLocalForward(host, remoteArgs, tty, nil)
+	return BuildArgsWithForwards(host, remoteArgs, tty, nil, nil)
 }
 
 type LocalForward struct {
@@ -31,8 +50,19 @@ type LocalForward struct {
 	RemotePort int
 }
 
+type RemoteSocketForward struct {
+	RemotePath string
+	LocalHost  string
+	LocalPort  int
+}
+
 // BuildArgsWithLocalForward builds the ssh argument list for a target host and optional local forward.
 func BuildArgsWithLocalForward(host string, remoteArgs []string, tty bool, forward *LocalForward) []string {
+	return BuildArgsWithForwards(host, remoteArgs, tty, forward, nil)
+}
+
+// BuildArgsWithForwards builds the ssh argument list for a target host with optional forwards.
+func BuildArgsWithForwards(host string, remoteArgs []string, tty bool, forward *LocalForward, remoteSocket *RemoteSocketForward) []string {
 	args := []string{}
 	if tty {
 		args = append(args, "-tt")
@@ -45,6 +75,14 @@ func BuildArgsWithLocalForward(host string, remoteArgs []string, tty bool, forwa
 			remoteHost = "localhost"
 		}
 		args = append(args, "-L", fmt.Sprintf("%d:%s:%d", forward.LocalPort, remoteHost, forward.RemotePort))
+	}
+	if remoteSocket != nil {
+		localHost := strings.TrimSpace(remoteSocket.LocalHost)
+		if localHost == "" {
+			localHost = "localhost"
+		}
+		args = append(args, "-o", "ExitOnForwardFailure=yes", "-o", "StreamLocalBindUnlink=yes")
+		args = append(args, "-R", fmt.Sprintf("%s:%s:%d", remoteSocket.RemotePath, localHost, remoteSocket.LocalPort))
 	}
 	args = append(args, host)
 	return append(args, remoteArgs...)

@@ -6,8 +6,11 @@ import (
 	"flag"
 	"fmt"
 	"net"
+	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
+	"runtime"
 	"strconv"
 	"strings"
 
@@ -95,13 +98,30 @@ func main() {
 	if strings.TrimSpace(*agentOverride) != "" {
 		agentProvider = *agentOverride
 	}
-	remoteArgs := sshcmd.RemoteArgs(resolved.App, agentProvider, actionArgs)
 	interactive := len(actionArgs) == 0 || (len(actionArgs) == 1 && actionArgs[0] == "shell")
 	tty := interactive && term.IsTerminal(int(os.Stdin.Fd())) && term.IsTerminal(int(os.Stdout.Fd()))
 	if interactive && !tty {
 		fmt.Fprintln(os.Stderr, "interactive sessions require a TTY; run from a terminal or use snapshot/restore commands")
 		os.Exit(1)
 	}
+	extraEnv := map[string]string{}
+	var openServer *http.Server
+	var remoteSocket *sshcmd.RemoteSocketForward
+	if interactive {
+		server, port, err := startOpenListener()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "failed to start xdg-open listener: %v\n", err)
+			os.Exit(1)
+		}
+		openServer = server
+		extraEnv["VIBEHOST_XDG_OPEN_SOCKET"] = xdgOpenSocketPath()
+		remoteSocket = &sshcmd.RemoteSocketForward{
+			RemotePath: xdgOpenSocketPath(),
+			LocalHost:  "localhost",
+			LocalPort:  port,
+		}
+	}
+	remoteArgs := sshcmd.RemoteArgs(resolved.App, agentProvider, actionArgs, extraEnv)
 	var forward *sshcmd.LocalForward
 	if interactive && !isLocalHost(resolved.Host) {
 		hostPort, err := resolveHostPort(resolved, agentProvider)
@@ -120,7 +140,7 @@ func main() {
 		}
 	}
 
-	sshArgs := sshcmd.BuildArgsWithLocalForward(resolved.Host, remoteArgs, tty, forward)
+	sshArgs := sshcmd.BuildArgsWithForwards(resolved.Host, remoteArgs, tty, forward, remoteSocket)
 
 	cmd := exec.Command("ssh", sshArgs...)
 	cmd.Stdin = os.Stdin
@@ -128,11 +148,17 @@ func main() {
 	cmd.Stderr = os.Stderr
 
 	if err := cmd.Run(); err != nil {
+		if openServer != nil {
+			_ = openServer.Close()
+		}
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			os.Exit(exitErr.ExitCode())
 		}
 		fmt.Fprintf(os.Stderr, "failed to start ssh: %v\n", err)
 		os.Exit(1)
+	}
+	if openServer != nil {
+		_ = openServer.Close()
 	}
 }
 
@@ -419,7 +445,7 @@ func shellQuote(value string) string {
 }
 
 func resolveHostPort(resolved target.Resolved, agentProvider string) (int, error) {
-	remoteArgs := sshcmd.RemoteArgs(resolved.App, agentProvider, []string{"port"})
+	remoteArgs := sshcmd.RemoteArgs(resolved.App, agentProvider, []string{"port"}, nil)
 	sshArgs := sshcmd.BuildArgs(resolved.Host, remoteArgs, false)
 	cmd := exec.Command("ssh", sshArgs...)
 	output, err := cmd.CombinedOutput()
@@ -473,4 +499,86 @@ func isLocalHost(host string) bool {
 	default:
 		return false
 	}
+}
+
+func xdgOpenSocketPath() string {
+	return "/tmp/vibehost-open.sock"
+}
+
+func startOpenListener() (*http.Server, int, error) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return nil, 0, err
+	}
+	port := listener.Addr().(*net.TCPAddr).Port
+	server := &http.Server{
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != http.MethodPost || r.URL.Path != "/open" {
+				http.Error(w, "not found", http.StatusNotFound)
+				return
+			}
+			r.Body = http.MaxBytesReader(w, r.Body, 4096)
+			if err := r.ParseForm(); err != nil {
+				http.Error(w, "invalid request", http.StatusBadRequest)
+				return
+			}
+			raw := strings.TrimSpace(r.Form.Get("url"))
+			cleaned, err := validateOpenURL(raw)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			if err := openURL(cleaned); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			w.WriteHeader(http.StatusNoContent)
+		}),
+	}
+	go func() {
+		_ = server.Serve(listener)
+	}()
+	return server, port, nil
+}
+
+func validateOpenURL(raw string) (string, error) {
+	cleaned := strings.TrimSpace(raw)
+	if cleaned == "" {
+		return "", fmt.Errorf("missing url")
+	}
+	if strings.ContainsAny(cleaned, "\r\n\t") {
+		return "", fmt.Errorf("invalid url")
+	}
+	parsed, err := url.Parse(cleaned)
+	if err != nil {
+		return "", fmt.Errorf("invalid url")
+	}
+	if !parsed.IsAbs() || parsed.Host == "" {
+		return "", fmt.Errorf("invalid url")
+	}
+	switch strings.ToLower(parsed.Scheme) {
+	case "http", "https":
+		return cleaned, nil
+	default:
+		return "", fmt.Errorf("unsupported url scheme")
+	}
+}
+
+func openURL(raw string) error {
+	switch runtime.GOOS {
+	case "darwin":
+		if path, err := exec.LookPath("open"); err == nil {
+			return exec.Command(path, raw).Start()
+		}
+	case "windows":
+		return exec.Command("rundll32", "url.dll,FileProtocolHandler", raw).Start()
+	default:
+		if path, err := exec.LookPath("xdg-open"); err == nil {
+			return exec.Command(path, raw).Start()
+		}
+		if path, err := exec.LookPath("open"); err == nil {
+			return exec.Command(path, raw).Start()
+		}
+	}
+	return fmt.Errorf("no opener available")
 }

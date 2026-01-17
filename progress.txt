@@ -60,3 +60,4 @@ ok  	vibehost/internal/config	(cached)
 ok  	vibehost/internal/server	(cached)
 ok  	vibehost/internal/sshcmd	(cached)
 ok  	vibehost/internal/target	(cached) and .
+2026-01-17: Implemented xdg-open forwarding with SSH remote socket forwarding, client-side URL validation/opening, server socket mounts, and container xdg-open wrapper. Ran `mise run test` and `mise run vet`.

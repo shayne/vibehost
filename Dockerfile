@@ -43,9 +43,27 @@ RUN set -eux; \
     > /usr/local/bin/gemini; \
   printf '%s\n' \
     '#!/bin/sh' \
+    'set -e' \
+    'url="${1:-}"' \
+    'if [ -z "$url" ]; then' \
+    '  echo "xdg-open: missing url" >&2' \
+    '  exit 2' \
+    'fi' \
+    'socket="${VIBEHOST_XDG_OPEN_SOCKET:-/tmp/vibehost-open.sock}"' \
+    'if [ -S "$socket" ]; then' \
+    '  exec curl -sS --unix-socket "$socket" -X POST --data-urlencode "url=$url" http://localhost/open' \
+    'fi' \
+    'if [ -x /usr/bin/xdg-open ]; then' \
+    '  exec /usr/bin/xdg-open "$url"' \
+    'fi' \
+    'echo "xdg-open forwarding unavailable; missing socket $socket" >&2' \
+    'exit 1' \
+    > /usr/local/bin/xdg-open; \
+  printf '%s\n' \
+    '#!/bin/sh' \
     "printf 'vibehost-agent-check ok\\\\n'" \
     > /usr/local/bin/vibehost-agent-check; \
-  chmod +x /usr/local/bin/codex /usr/local/bin/claude /usr/local/bin/gemini /usr/local/bin/vibehost-agent-check
+  chmod +x /usr/local/bin/codex /usr/local/bin/claude /usr/local/bin/gemini /usr/local/bin/xdg-open /usr/local/bin/vibehost-agent-check
 
 RUN mkdir -p ${CODEX_HOME}/skills
 COPY skills/ ${CODEX_HOME}/skills/

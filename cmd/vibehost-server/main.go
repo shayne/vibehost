@@ -494,7 +494,7 @@ func restoreSnapshot(containerName string, app string, port int, snapshotRef str
 }
 
 func dockerRunArgs(name string, app string, port int, image string) []string {
-	return []string{
+	args := []string{
 		"run",
 		"-d",
 		"--name",
@@ -521,9 +521,17 @@ func dockerRunArgs(name string, app string, port int, image string) []string {
 		fmt.Sprintf("VIBEHOST_CONTAINER=%s", name),
 		"-e",
 		fmt.Sprintf("VIBEHOST_PORT=%d", port),
-		image,
-		"/sbin/init",
 	}
+	if socketPath, ok := xdgOpenSocketPath(); ok {
+		args = append(args,
+			"-v",
+			fmt.Sprintf("%s:%s", socketPath, socketPath),
+			"-e",
+			fmt.Sprintf("VIBEHOST_XDG_OPEN_SOCKET=%s", socketPath),
+		)
+	}
+	args = append(args, image, "/sbin/init")
+	return args
 }
 
 func agentCommand(provider string) ([]string, error) {
@@ -549,4 +557,37 @@ func tmuxSessionArgs(session string, command []string) []string {
 	}
 	args := []string{"tmux", "new-session", "-A", "-s", session}
 	return append(args, command...)
+}
+
+func xdgOpenSocketPath() (string, bool) {
+	socket := strings.TrimSpace(os.Getenv("VIBEHOST_XDG_OPEN_SOCKET"))
+	if socket == "" {
+		return "", false
+	}
+	if waitForSocket(socket, 10, 100*time.Millisecond) {
+		return socket, true
+	}
+	fmt.Fprintf(os.Stderr, "warning: VIBEHOST_XDG_OPEN_SOCKET is set but socket not found at %s\n", socket)
+	return "", false
+}
+
+func waitForSocket(path string, attempts int, delay time.Duration) bool {
+	if attempts < 1 {
+		attempts = 1
+	}
+	for i := 0; i < attempts; i++ {
+		if isSocket(path) {
+			return true
+		}
+		time.Sleep(delay)
+	}
+	return false
+}
+
+func isSocket(path string) bool {
+	info, err := os.Stat(path)
+	if err != nil {
+		return false
+	}
+	return info.Mode()&os.ModeSocket != 0
 }
