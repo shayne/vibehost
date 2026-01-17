@@ -42,18 +42,11 @@ func main() {
 		return
 	}
 
-	fs := flag.NewFlagSet("vibehost", flag.ContinueOnError)
-	fs.SetOutput(os.Stderr)
-	agentOverride := fs.String("agent", "", "agent provider override (codex, claude, gemini)")
-	deleteApp := fs.Bool("delete", false, "delete app container and snapshots")
-	deleteYes := fs.Bool("y", false, "confirm destructive actions")
-	deleteYesLong := fs.Bool("yes", false, "confirm destructive actions")
-
-	if err := fs.Parse(args); err != nil {
+	agentOverride, deleteApp, deleteYes, remaining, err := parseMainArgs(args)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err.Error())
 		os.Exit(2)
 	}
-
-	remaining := fs.Args()
 	if len(remaining) < 1 || len(remaining) > 3 {
 		fmt.Fprintln(os.Stderr, "Usage: vibehost [--agent provider] <app> | vibehost [--agent provider] <app>@<host> | vibehost [--agent provider] <app> snapshot | vibehost [--agent provider] <app> snapshots | vibehost [--agent provider] <app> restore <snapshot> | vibehost <app> shell | vibehost <app> --delete [-y] | vibehost bootstrap [<host>] | vibehost config [options]")
 		os.Exit(2)
@@ -81,13 +74,12 @@ func main() {
 		}
 		actionArgs = []string{"restore", remaining[2]}
 	}
-	if *deleteApp {
+	if deleteApp {
 		if len(actionArgs) != 0 {
 			fmt.Fprintln(os.Stderr, "Usage: vibehost [--delete] <app> | vibehost [--agent provider] <app> snapshot | vibehost [--agent provider] <app> snapshots | vibehost [--agent provider] <app> restore <snapshot> | vibehost <app> shell")
 			os.Exit(2)
 		}
-		confirmed := *deleteYes || *deleteYesLong
-		if !confirmed {
+		if !deleteYes {
 			if !promptDelete(targetArg) {
 				fmt.Fprintln(os.Stdout, "delete cancelled")
 				return
@@ -117,8 +109,8 @@ func main() {
 	if strings.TrimSpace(agentProvider) == "" {
 		agentProvider = "codex"
 	}
-	if strings.TrimSpace(*agentOverride) != "" {
-		agentProvider = *agentOverride
+	if strings.TrimSpace(agentOverride) != "" {
+		agentProvider = agentOverride
 	}
 	interactive := len(actionArgs) == 0 || (len(actionArgs) == 1 && actionArgs[0] == "shell")
 	tty := interactive && term.IsTerminal(int(os.Stdin.Fd())) && term.IsTerminal(int(os.Stdout.Fd()))
@@ -634,6 +626,35 @@ func promptDelete(app string) bool {
 	}
 	input = strings.TrimSpace(strings.ToLower(input))
 	return input == "y" || input == "yes"
+}
+
+func parseMainArgs(args []string) (string, bool, bool, []string, error) {
+	var remaining []string
+	agentOverride := ""
+	deleteApp := false
+	deleteYes := false
+	for i := 0; i < len(args); i++ {
+		arg := strings.TrimSpace(args[i])
+		switch {
+		case arg == "":
+			continue
+		case arg == "--delete":
+			deleteApp = true
+		case arg == "-y" || arg == "--yes":
+			deleteYes = true
+		case arg == "--agent":
+			if i+1 >= len(args) {
+				return "", false, false, nil, fmt.Errorf("Usage: vibehost [--agent provider] <app> | vibehost [--agent provider] <app>@<host> | vibehost [--agent provider] <app> snapshot | vibehost [--agent provider] <app> snapshots | vibehost [--agent provider] <app> restore <snapshot> | vibehost <app> shell | vibehost <app> --delete [-y] | vibehost bootstrap [<host>] | vibehost config [options]")
+			}
+			agentOverride = strings.TrimSpace(args[i+1])
+			i++
+		case strings.HasPrefix(arg, "--agent="):
+			agentOverride = strings.TrimSpace(strings.TrimPrefix(arg, "--agent="))
+		default:
+			remaining = append(remaining, args[i])
+		}
+	}
+	return agentOverride, deleteApp, deleteYes, remaining, nil
 }
 
 func normalizedSshEnv() []string {
