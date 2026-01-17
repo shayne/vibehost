@@ -88,7 +88,7 @@ Building and running "vibe-coded" apps with agent assistance typically requires 
   - Acceptance: `VIBEHOST_APP_PORT=8080` and `VIBEHOST_HOST_PORT=<host-port>` are available inside the container.
 - [x] R12: `xdg-open` calls inside the container are forwarded to the client machine.
   - Acceptance: A call to `xdg-open http://localhost:<host-port>` inside the container opens the user’s local browser.
-- [ ] R13: Provide project documentation for users and contributors.
+- [x] R13: Provide project documentation for users and contributors.
   - Acceptance: `README.md` provides a complete start-to-finish flow from zero setup to:
     - installing the client
     - bootstrapping a host
@@ -241,6 +241,7 @@ Progress Notes:
 - Implemented client-side localhost reverse proxy via SSH local port forwarding, added server port query action, and detect local port conflicts for interactive sessions.
 - Passed `VIBEHOST_APP_PORT` and `VIBEHOST_HOST_PORT` into containers on create/restore so apps can read internal and host ports from env.
 - Implemented xdg-open forwarding via SSH remote socket forwarding, added client-side URL validation and opener, and shipped a container xdg-open wrapper that calls back to the client.
+- Added README quick-start with install/bootstrap/hello-world flow and confirmed DEVELOPMENT.md covers local setup plus test/E2E/integration workflow.
 
 ### Phase 4: Local E2E Test (localhost SSH)
 - Treat the VM as both client + server.
@@ -307,8 +308,8 @@ Progress Notes:
 - [x] Non-root bootstrap warns about sudo usage and docker group membership.
 
 ### Documentation
-- [ ] `README.md` provides a short overview and hello-world prompt example.
-- [ ] `DEVELOPMENT.md` describes local setup and the dev/test workflow.
+- [x] `README.md` provides a short overview and hello-world prompt example.
+- [x] `DEVELOPMENT.md` describes local setup and the dev/test workflow.
 
 ### Snapshot/Restore
 - [x] `vibehost <app> snapshot` creates a restorable snapshot.
