@@ -8,13 +8,19 @@
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/shayne/vibehost/main/bin/vibehost-install | \
-  VIBEHOST_REPO=shayne/vibehost bash
+  bash
 ```
 
 Verify:
 
 ```bash
 vibehost --version
+```
+
+Optional overrides:
+
+```bash
+VIBEHOST_REPO=OWNER/REPO VIBEHOST_VERSION=v0.1.0 bash
 ```
 
 ### 2) Bootstrap a host (once per VM)

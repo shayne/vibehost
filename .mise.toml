@@ -19,9 +19,14 @@ run = "docker build -t vibehost:local ."
 
 [tasks."release:build"]
 run = """
+rm -rf dist
 mkdir -p dist
-GOOS=linux GOARCH=amd64 go build -o dist/vibehost-linux-amd64 ./cmd/vibehost
-GOOS=linux GOARCH=amd64 go build -o dist/vibehost-server-linux-amd64 ./cmd/vibehost-server
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o dist/vibehost-linux-amd64 ./cmd/vibehost
+CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o dist/vibehost-linux-arm64 ./cmd/vibehost
+CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -o dist/vibehost-darwin-amd64 ./cmd/vibehost
+CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -o dist/vibehost-darwin-arm64 ./cmd/vibehost
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o dist/vibehost-server-linux-amd64 ./cmd/vibehost-server
+CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o dist/vibehost-server-linux-arm64 ./cmd/vibehost-server
 """
 
 [tasks."release:push-image"]
