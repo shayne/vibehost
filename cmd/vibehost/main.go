@@ -720,8 +720,12 @@ func stageLocalImage(host string) error {
 	if _, err := exec.LookPath("docker"); err != nil {
 		return fmt.Errorf("docker is required to build the image locally")
 	}
+	_, arch, err := detectRemotePlatform(host)
+	if err != nil {
+		return err
+	}
 	tag := "vibehost:dev"
-	buildCmd := exec.Command("docker", "build", "-t", tag, ".")
+	buildCmd := exec.Command("docker", "build", "--platform", "linux/"+arch, "-t", tag, ".")
 	buildCmd.Stdout = os.Stdout
 	buildCmd.Stderr = os.Stderr
 	if err := buildCmd.Run(); err != nil {
