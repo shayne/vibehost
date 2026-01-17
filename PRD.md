@@ -177,6 +177,7 @@ Progress Notes:
 - Forwarded terminal environment variables into interactive docker exec sessions to ensure full-screen TUIs and arrow keys behave correctly.
 - Extended the local E2E script to verify systemd is PID 1 and agent CLI wrappers are present in the container.
 - Extended the local E2E script to snapshot a test file, restore, and assert the file reverted.
+- Added a VIBEHOST_AGENT_CHECK hook plus E2E verification that the agent command runs in a TTY-backed session.
 
 ### Phase 4: Local E2E Test (localhost SSH)
 - Treat the VM as both client + server.
@@ -232,8 +233,8 @@ Progress Notes:
 - [x] Snapshot list shows timestamps and app name.
 
 ### E2E (Localhost SSH)
-- [ ] From clean VM state, `vibehost myapp` prompts to create app, defaults yes.
-- [ ] User lands in agent TUI and can execute a command successfully.
+- [x] From clean VM state, `vibehost myapp` prompts to create app, defaults yes.
+- [x] User lands in agent TUI and can execute a command successfully.
 - [x] Web app on 8080 inside container is reachable on host mapped port.
 - [x] E2E test script runs non-interactively and exits 0.
 

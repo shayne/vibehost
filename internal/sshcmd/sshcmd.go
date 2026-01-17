@@ -1,17 +1,32 @@
 package sshcmd
 
-import "fmt"
+import (
+	"os"
+	"strings"
+)
 
 // RemoteArgs builds the remote command executed on the server host.
-func RemoteArgs(app string, agentProvider string) []string {
-	if agentProvider == "" {
+func RemoteArgs(app string, agentProvider string, actionArgs []string) []string {
+	if strings.TrimSpace(agentProvider) == "" {
 		agentProvider = "codex"
 	}
-	return []string{fmt.Sprintf("vibehost-server --agent %s %s", agentProvider, app)}
+	remote := []string{"vibehost-server", "--agent", agentProvider, app}
+	remote = append(remote, actionArgs...)
+	if value := strings.TrimSpace(os.Getenv("VIBEHOST_AGENT_CHECK")); value != "" {
+		prefix := []string{"env", "VIBEHOST_AGENT_CHECK=" + value}
+		return append(prefix, remote...)
+	}
+	return remote
 }
 
 // BuildArgs builds the ssh argument list for a target host and remote command.
-func BuildArgs(host string, remoteArgs []string) []string {
-	args := []string{"-tt", host}
+func BuildArgs(host string, remoteArgs []string, tty bool) []string {
+	args := []string{}
+	if tty {
+		args = append(args, "-tt")
+	} else {
+		args = append(args, "-T")
+	}
+	args = append(args, host)
 	return append(args, remoteArgs...)
 }

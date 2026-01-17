@@ -9,35 +9,52 @@ RUN apt-get update \
     ca-certificates \
     curl \
     dbus \
+    docker.io \
     nodejs \
     npm \
     sudo \
     systemd \
     systemd-sysv \
+    tmux \
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/*
 
 RUN set -eux; \
   cat > /usr/local/bin/codex <<'SCRIPT'\
 #!/bin/sh\
+if [ -n "${VIBEHOST_AGENT_CHECK:-}" ]; then\
+  exec sh -c "$VIBEHOST_AGENT_CHECK"\
+fi\
 exec npx -y @openai/codex@latest "$@"\
 SCRIPT\
   ; \
   cat > /usr/local/bin/claude <<'SCRIPT'\
 #!/bin/sh\
+if [ -n "${VIBEHOST_AGENT_CHECK:-}" ]; then\
+  exec sh -c "$VIBEHOST_AGENT_CHECK"\
+fi\
 exec npx -y @anthropic-ai/claude-code@latest "$@"\
 SCRIPT\
   ; \
   cat > /usr/local/bin/gemini <<'SCRIPT'\
 #!/bin/sh\
+if [ -n "${VIBEHOST_AGENT_CHECK:-}" ]; then\
+  exec sh -c "$VIBEHOST_AGENT_CHECK"\
+fi\
 exec npx -y @google/gemini-cli@latest "$@"\
 SCRIPT\
   ; \
-  chmod +x /usr/local/bin/codex /usr/local/bin/claude /usr/local/bin/gemini
+  cat > /usr/local/bin/vibehost-agent-check <<'SCRIPT'\
+#!/bin/sh\
+printf 'vibehost-agent-check ok\\n'\
+SCRIPT\
+  ; \
+  chmod +x /usr/local/bin/codex /usr/local/bin/claude /usr/local/bin/gemini /usr/local/bin/vibehost-agent-check
 
 RUN mkdir -p ${CODEX_HOME}/skills
 COPY skills/ ${CODEX_HOME}/skills/
 COPY bin/vibehost-demo /usr/local/bin/vibehost-demo
+COPY bin/vibehost-container /usr/local/bin/vibehost-container
 COPY systemd/vibehost-demo.service /etc/systemd/system/vibehost-demo.service
 RUN systemctl enable vibehost-demo.service
 

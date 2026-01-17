@@ -4,6 +4,7 @@ set -euo pipefail
 root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 app_name="${VIBEHOST_E2E_APP:-myapp}"
 agent="${VIBEHOST_E2E_AGENT:-codex}"
+container="vibehost-$app_name"
 
 require_cmd() {
   if ! command -v "$1" >/dev/null 2>&1; then
@@ -17,6 +18,7 @@ require_cmd docker
 require_cmd go
 require_cmd timeout
 require_cmd curl
+require_cmd script
 
 if ! ssh -o BatchMode=yes -o ConnectTimeout=5 localhost true >/dev/null 2>&1; then
   echo "ssh to localhost failed; ensure sshd is running and localhost is configured for key auth" >&2
@@ -56,9 +58,21 @@ docker build -t vibehost:latest "$root_dir" >/dev/null
 
 vibehost config --host localhost --agent "$agent" >/dev/null
 
-printf '\nexit\n' | timeout 45s vibehost "$app_name" shell >/dev/null
+if docker inspect "$container" >/dev/null 2>&1; then
+  docker rm -f "$container" >/dev/null
+fi
 
-container="vibehost-$app_name"
+create_output=""
+if ! create_output="$(printf '\nexit\n' | timeout 45s vibehost "$app_name" shell 2>&1)"; then
+  echo "initial app creation failed for $app_name" >&2
+  echo "$create_output" >&2
+  exit 1
+fi
+
+if ! echo "$create_output" | grep -Fq "App $app_name does not exist. Create? [Y/n]:"; then
+  echo "expected create prompt for $app_name on fresh run" >&2
+  exit 1
+fi
 
 wait_for_container() {
   local deadline
@@ -73,6 +87,20 @@ wait_for_container() {
   echo "timed out waiting for $container to be ready" >&2
   return 1
 }
+
+wait_for_container
+
+agent_output=""
+if ! agent_output="$(VIBEHOST_AGENT_CHECK="vibehost-agent-check" script -q -c "vibehost \"$app_name\"" /dev/null 2>&1)"; then
+  echo "agent session check failed for $app_name" >&2
+  echo "$agent_output" >&2
+  exit 1
+fi
+if ! echo "$agent_output" | grep -Fq "vibehost-agent-check ok"; then
+  echo "expected agent session check output for $app_name" >&2
+  echo "$agent_output" >&2
+  exit 1
+fi
 
 docker port "$container" 8080/tcp >/dev/null
 

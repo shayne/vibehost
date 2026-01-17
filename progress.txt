@@ -42,3 +42,5 @@ ok  	vibehost/internal/server	(cached)
 ok  	vibehost/internal/sshcmd	(cached)
 ok  	vibehost/internal/target	(cached) and \.
 2026-01-17: Extended bin/vibehost-e2e-local to start a simple HTTP server in the container, resolve mapped host port 8080, and verify /health via curl. Ran `mise exec -- go test ./...` and `mise exec -- go vet ./...`.
+2026-01-17: Updated bin/vibehost-e2e-local to enforce a clean container and assert the create prompt appears on first run; marked E2E prompt checklist item complete in PRD. Ran `mise exec -- go test ./...` and `mise exec -- go vet ./...`.
+2026-01-17: Added VIBEHOST_AGENT_CHECK hook to pass agent-check command through ssh/docker exec, updated container wrappers + E2E script to verify agent session output. Ran `mise exec -- go test ./...` and `mise exec -- go vet ./...`.

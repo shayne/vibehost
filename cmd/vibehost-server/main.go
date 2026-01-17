@@ -50,9 +50,12 @@ func main() {
 		fmt.Fprintf(os.Stderr, "invalid agent provider: %v\n", err)
 		os.Exit(2)
 	}
+	sessionName := "vibehost-agent"
 	if action == "shell" {
 		agentArgs = []string{"/bin/bash"}
+		sessionName = "vibehost-shell"
 	}
+	agentArgs = tmuxSessionArgs(sessionName, agentArgs)
 
 	if _, err := exec.LookPath("docker"); err != nil {
 		fmt.Fprintln(os.Stderr, "docker is required but was not found in PATH")
@@ -344,7 +347,21 @@ func dockerExec(name string, agentArgs []string) error {
 		agentArgs = []string{"/bin/bash"}
 	}
 	tty := term.IsTerminal(int(os.Stdin.Fd())) && term.IsTerminal(int(os.Stdout.Fd()))
-	args := dockerExecArgs(name, agentArgs, tty)
+	env := map[string]string{}
+	if tty {
+		termValue := strings.TrimSpace(os.Getenv("TERM"))
+		if termValue == "" {
+			termValue = "xterm-256color"
+		}
+		env["TERM"] = termValue
+		if colorTerm := strings.TrimSpace(os.Getenv("COLORTERM")); colorTerm != "" {
+			env["COLORTERM"] = colorTerm
+		}
+	}
+	if agentCheck := strings.TrimSpace(os.Getenv("VIBEHOST_AGENT_CHECK")); agentCheck != "" {
+		env["VIBEHOST_AGENT_CHECK"] = agentCheck
+	}
+	args := dockerExecArgs(name, agentArgs, tty, env)
 	cmd := exec.Command("docker", args...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
@@ -352,10 +369,20 @@ func dockerExec(name string, agentArgs []string) error {
 	return cmd.Run()
 }
 
-func dockerExecArgs(name string, agentArgs []string, tty bool) []string {
+func dockerExecArgs(name string, agentArgs []string, tty bool, env map[string]string) []string {
 	args := []string{"exec", "-i"}
 	if tty {
 		args = append(args, "-t")
+	}
+	if len(env) > 0 {
+		keys := make([]string, 0, len(env))
+		for key := range env {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+		for _, key := range keys {
+			args = append(args, "-e", fmt.Sprintf("%s=%s", key, env[key]))
+		}
 	}
 	args = append(args, name)
 	return append(args, agentArgs...)
@@ -480,4 +507,15 @@ func agentCommand(provider string) ([]string, error) {
 	default:
 		return nil, fmt.Errorf("unsupported provider %q", provider)
 	}
+}
+
+func tmuxSessionArgs(session string, command []string) []string {
+	if strings.TrimSpace(session) == "" {
+		session = "vibehost-session"
+	}
+	if len(command) == 0 {
+		command = []string{"/bin/bash"}
+	}
+	args := []string{"tmux", "new-session", "-A", "-s", session}
+	return append(args, command...)
 }
