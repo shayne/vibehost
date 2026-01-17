@@ -178,6 +178,7 @@ Progress Notes:
 - Extended the local E2E script to verify systemd is PID 1 and agent CLI wrappers are present in the container.
 - Extended the local E2E script to snapshot a test file, restore, and assert the file reverted.
 - Added a VIBEHOST_AGENT_CHECK hook plus E2E verification that the agent command runs in a TTY-backed session.
+- Added a nightly GitHub Actions workflow that runs build/test/vet via `mise` tasks.
 
 ### Phase 4: Local E2E Test (localhost SSH)
 - Treat the VM as both client + server.
