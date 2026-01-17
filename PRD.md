@@ -167,6 +167,7 @@ Progress Notes:
 - Added `vibehost <app> shell` to open a non-agent shell session inside the container.
 - Added `vibehost-container` in-container commands for snapshot/restore/list and passed container metadata/env plus Docker socket into the container for self-management.
 - Added `vibehost config --host` alias for `--default-host` to match PRD/E2E usage.
+- Guarded port mapping for existing containers when server state is missing and added parsing coverage for Docker port output.
 
 ### Phase 4: Local E2E Test (localhost SSH)
 - Treat the VM as both client + server.
@@ -213,7 +214,7 @@ Progress Notes:
 ### Port Mapping
 - [ ] First app maps container 8080 -> host 8080.
 - [ ] Second app maps container 8080 -> host 8081.
-- [ ] Mapping is stable across restarts and stored in server state.
+- [x] Mapping is stable across restarts and stored in server state.
 
 ### Snapshot/Restore
 - [ ] `vibehost <app> snapshot` creates a restorable snapshot.

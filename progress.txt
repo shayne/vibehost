@@ -24,3 +24,4 @@ ok  	vibehost/internal/target	(cached) and \.
 2026-01-17: Added vibehost <app> shell command to open a non-agent shell session (client/server). Ran `mise exec -- go test ./...` and `mise exec -- go vet ./...`.
 2026-01-17: Added in-container snapshot/restore/list commands via new vibehost-container helper, mounted Docker socket and injected container metadata env vars. Ran `mise exec -- go test ./...` and `mise exec -- go vet ./...`.
 2026-01-17: Added a --host alias for vibehost config to match PRD/E2E usage. Ran `mise exec -- go test ./...` and `mise exec -- go vet ./...`.
+2026-01-17: Guarded port mapping when server state is missing for existing containers and added parser coverage for Docker port output. Ran `mise exec -- go test ./...` and `mise exec -- go vet ./...`.

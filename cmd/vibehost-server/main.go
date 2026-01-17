@@ -109,6 +109,9 @@ func main() {
 			state.SetPort(app, discovered)
 			port = discovered
 			stateDirty = true
+		} else {
+			fmt.Fprintf(os.Stderr, "existing container has no host port mapping for 8080; recreate or restore the app\n")
+			os.Exit(1)
 		}
 	}
 
@@ -123,7 +126,7 @@ func main() {
 			fmt.Fprintf(os.Stderr, "failed to resolve snapshot: %v\n", err)
 			os.Exit(1)
 		}
-		if err := restoreSnapshot(containerName, port, ref); err != nil {
+		if err := restoreSnapshot(containerName, app, port, ref); err != nil {
 			fmt.Fprintf(os.Stderr, "failed to restore snapshot: %v\n", err)
 			os.Exit(1)
 		}
@@ -143,7 +146,7 @@ func main() {
 			os.Exit(1)
 		}
 
-		if err := dockerRun(containerName, port); err != nil {
+		if err := dockerRun(containerName, app, port); err != nil {
 			fmt.Fprintf(os.Stderr, "failed to create container: %v\n", err)
 			os.Exit(1)
 		}
@@ -235,8 +238,13 @@ func containerPort(name string) (int, bool, error) {
 		return 0, false, err
 	}
 
+	port, found := parsePortMapping(string(out))
+	return port, found, nil
+}
+
+func parsePortMapping(output string) (int, bool) {
 	re := regexp.MustCompile(`:(\d+)$`)
-	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+	for _, line := range strings.Split(strings.TrimSpace(output), "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" {
 			continue
@@ -249,14 +257,13 @@ func containerPort(name string) (int, bool, error) {
 		if err != nil {
 			continue
 		}
-		return port, true, nil
+		return port, true
 	}
-
-	return 0, false, nil
+	return 0, false
 }
 
-func dockerRun(name string, port int) error {
-	args := dockerRunArgs(name, port, defaultImage)
+func dockerRun(name string, app string, port int) error {
+	args := dockerRunArgs(name, app, port, defaultImage)
 	cmd := exec.Command("docker", args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -352,16 +359,16 @@ func latestSnapshotRef(app string) (string, error) {
 	return fmt.Sprintf("%s:%s", repo, tags[len(tags)-1]), nil
 }
 
-func restoreSnapshot(containerName string, port int, snapshotRef string) error {
+func restoreSnapshot(containerName string, app string, port int, snapshotRef string) error {
 	_ = exec.Command("docker", "rm", "-f", containerName).Run()
-	args := dockerRunArgs(containerName, port, snapshotRef)
+	args := dockerRunArgs(containerName, app, port, snapshotRef)
 	cmd := exec.Command("docker", args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
 }
 
-func dockerRunArgs(name string, port int, image string) []string {
+func dockerRunArgs(name string, app string, port int, image string) []string {
 	return []string{
 		"run",
 		"-d",
@@ -376,6 +383,14 @@ func dockerRunArgs(name string, port int, image string) []string {
 		"/run/lock",
 		"-v",
 		"/sys/fs/cgroup:/sys/fs/cgroup:rw",
+		"-v",
+		"/var/run/docker.sock:/var/run/docker.sock",
+		"-e",
+		fmt.Sprintf("VIBEHOST_APP=%s", app),
+		"-e",
+		fmt.Sprintf("VIBEHOST_CONTAINER=%s", name),
+		"-e",
+		fmt.Sprintf("VIBEHOST_PORT=%d", port),
 		image,
 		"/sbin/init",
 	}
