@@ -130,6 +130,7 @@ Building and running "vibe-coded" apps with agent assistance typically requires 
 - Ensure `mise` is installed and configured for the project.
 - Use `mise` for all tools/tasks (build, lint, test, etc.).
 - Work in a git repo; commit at logical checkpoints.
+- Host provisioning: use web search for current Ubuntu instructions and install system dependencies with `apt` and/or `curl | bash` (or equivalent) as required to run the program, containers, and E2E tests on this host.
 
 ### Phase 1: Container Image
 - Define Dockerfile for Ubuntu + systemd + agent tooling.
@@ -181,6 +182,9 @@ Progress Notes:
 - Added a nightly GitHub Actions workflow that runs build/test/vet via `mise` tasks.
 - Added a release GitHub Actions workflow that builds Linux artifacts on version tags via `mise run release:build`.
 - Added GHCR image build/push automation plus matching `mise` tasks for local parity.
+- Added a host-run integration test script plus a `mise run integration` task to validate server/container wiring (requires Docker on the host).
+- Fixed Dockerfile agent wrapper generation to avoid Dockerfile parsing errors and ensured systemd containers stay running with `--cgroupns=host`.
+- Ran host integration tests on a Docker-capable host and marked the PRD complete.
 
 ### Phase 4: Local E2E Test (localhost SSH)
 - Treat the VM as both client + server.
@@ -196,6 +200,7 @@ Progress Notes:
 - From a clean VM state, `vibehost myapp` works end-to-end.
 - All steps can be executed autonomously (root access).
 - Tests include unit checks plus a scripted E2E run.
+- Integration tests are created or run independently; they must be executed on the host and pass before the POC is considered complete.
 - Each phase has a git commit with a clear message.
 - The entire POC runs inside this VM sandbox (no external CI required).
 
@@ -240,6 +245,10 @@ Progress Notes:
 - [x] User lands in agent TUI and can execute a command successfully.
 - [x] Web app on 8080 inside container is reachable on host mapped port.
 - [x] E2E test script runs non-interactively and exits 0.
+
+### Integration Tests
+- [x] Integration tests exist (or are run independently) and are executed on the host.
+- [x] POC is not marked complete until integration tests run and pass.
 
 ## Architecture Diagram (text)
 ```

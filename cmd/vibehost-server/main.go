@@ -476,6 +476,7 @@ func dockerRunArgs(name string, app string, port int, image string) []string {
 		"-p",
 		fmt.Sprintf("%d:8080", port),
 		"--privileged",
+		"--cgroupns=host",
 		"--tmpfs",
 		"/run",
 		"--tmpfs",
