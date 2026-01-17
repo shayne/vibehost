@@ -8,6 +8,8 @@ import (
 	"os/exec"
 	"strings"
 
+	"golang.org/x/term"
+
 	"vibehost/internal/config"
 	"vibehost/internal/sshcmd"
 	"vibehost/internal/target"
@@ -87,7 +89,13 @@ func main() {
 		agentProvider = *agentOverride
 	}
 	remoteArgs := sshcmd.RemoteArgs(resolved.App, agentProvider, actionArgs)
-	sshArgs := sshcmd.BuildArgs(resolved.Host, remoteArgs)
+	interactive := len(actionArgs) == 0 || (len(actionArgs) == 1 && actionArgs[0] == "shell")
+	tty := interactive && term.IsTerminal(int(os.Stdin.Fd())) && term.IsTerminal(int(os.Stdout.Fd()))
+	if interactive && !tty {
+		fmt.Fprintln(os.Stderr, "interactive sessions require a TTY; run from a terminal or use snapshot/restore commands")
+		os.Exit(1)
+	}
+	sshArgs := sshcmd.BuildArgs(resolved.Host, remoteArgs, tty)
 
 	cmd := exec.Command("ssh", sshArgs...)
 	cmd.Stdin = os.Stdin

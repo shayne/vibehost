@@ -30,3 +30,4 @@ ok  	vibehost/internal/target	(cached) and \.
 2026-01-17: Synced server port state from existing vibehost containers on startup to recover missing state file allocations. Ran `mise exec -- go test ./...` and `mise exec -- go vet ./...`.
 2026-01-17: Made SSH TTY allocation conditional for interactive sessions and added sshcmd tests. Ran `mise exec -- go test ./...` and `mise exec -- go vet ./...`.
 2026-01-17: Added tests for server app creation prompt to ensure default-yes behavior on empty/EOF input. Ran `mise exec -- go test ./...` and `mise exec -- go vet ./...`.
+2026-01-17: Required a TTY for interactive client sessions so non-terminal runs fail fast with a clear error. Ran `mise exec -- go test ./...` and `mise exec -- go vet ./...`.

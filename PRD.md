@@ -172,6 +172,7 @@ Progress Notes:
 - Detect TTY availability for server `docker exec` and avoid `-t` when stdin/stdout are non-interactive; added coverage for exec arg construction.
 - Synced server port state from existing vibehost containers on startup so port assignments survive missing state files.
 - Added server prompt tests to confirm default-yes behavior for app creation prompts.
+- Added a client-side guard to require a TTY for interactive sessions so agent runs fail fast in non-terminal environments.
 
 ### Phase 4: Local E2E Test (localhost SSH)
 - Treat the VM as both client + server.
