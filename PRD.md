@@ -152,6 +152,7 @@ Progress Notes:
 - Implemented initial client-side target parsing + config-based host/alias resolution in Go (no SSH yet).
 - Added SSH invocation with TTY passthrough in the client CLI; errors clearly if SSH is missing.
 - Added initial `vibehost-server` CLI that provisions/starts Docker containers, persists port allocations, and attaches an interactive shell.
+- Implemented `vibehost config` command to view/update config with default host, agent provider, and host alias mappings.
 
 ### Phase 4: Local E2E Test (localhost SSH)
 - Treat the VM as both client + server.
