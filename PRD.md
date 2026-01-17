@@ -96,7 +96,7 @@ Building and running "vibe-coded" apps with agent assistance typically requires 
     - using Codex to create a hello-world HTTP server
     - accessing the app in a local browser via localhost proxy
   - Acceptance: `DEVELOPMENT.md` explains local setup, build/test workflow, and how to run integration/E2E scripts.
-- [ ] R14: The repo will exist at https://github.com/shayne/vibehost so all references to the GitHub project, install URLs, docker container registry names, go.mod, etc. should all be based on this location
+- [x] R14: The repo will exist at https://github.com/shayne/vibehost so all references to the GitHub project, install URLs, docker container registry names, go.mod, etc. should all be based on this location
   - Acceptance: there are no placeholders in the project for any repo or owner and the go module uses the github path and all imports use the github module name
 
 ## UX and CLI Design
@@ -242,6 +242,8 @@ Progress Notes:
 - Passed `VIBEHOST_APP_PORT` and `VIBEHOST_HOST_PORT` into containers on create/restore so apps can read internal and host ports from env.
 - Implemented xdg-open forwarding via SSH remote socket forwarding, added client-side URL validation and opener, and shipped a container xdg-open wrapper that calls back to the client.
 - Added README quick-start with install/bootstrap/hello-world flow and confirmed DEVELOPMENT.md covers local setup plus test/E2E/integration workflow.
+- Updated go module path and repo defaults to github.com/shayne/vibehost across install/bootstrap flows.
+- Reconfirmed all PRD tasks complete and restored the sentinel completion file.
 
 ### Phase 4: Local E2E Test (localhost SSH)
 - Treat the VM as both client + server.
