@@ -62,3 +62,20 @@ func TestDockerExecArgsWithoutTTY(t *testing.T) {
 		}
 	}
 }
+
+func TestNormalizeTermValue(t *testing.T) {
+	cases := map[string]string{
+		"":               "xterm-256color",
+		"  ":             "xterm-256color",
+		"xterm-256color":  "xterm-256color",
+		"xterm-ghostty":   "xterm-256color",
+		"ghostty":         "xterm-256color",
+		"Ghostty":         "xterm-256color",
+		"screen-256color": "screen-256color",
+	}
+	for input, expected := range cases {
+		if got := normalizeTermValue(input); got != expected {
+			t.Fatalf("normalizeTermValue(%q)=%q want %q", input, got, expected)
+		}
+	}
+}

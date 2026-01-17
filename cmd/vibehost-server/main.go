@@ -375,11 +375,7 @@ func dockerExec(name string, agentArgs []string) error {
 	tty := term.IsTerminal(int(os.Stdin.Fd())) && term.IsTerminal(int(os.Stdout.Fd()))
 	env := map[string]string{}
 	if tty {
-		termValue := strings.TrimSpace(os.Getenv("TERM"))
-		if termValue == "" {
-			termValue = "xterm-256color"
-		}
-		env["TERM"] = termValue
+		env["TERM"] = normalizeTermValue(os.Getenv("TERM"))
 		if colorTerm := strings.TrimSpace(os.Getenv("COLORTERM")); colorTerm != "" {
 			env["COLORTERM"] = colorTerm
 		}
@@ -393,6 +389,19 @@ func dockerExec(name string, agentArgs []string) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
+}
+
+func normalizeTermValue(termValue string) string {
+	value := strings.TrimSpace(termValue)
+	if value == "" {
+		return "xterm-256color"
+	}
+	switch strings.ToLower(value) {
+	case "xterm-ghostty", "ghostty":
+		return "xterm-256color"
+	default:
+		return value
+	}
 }
 
 func dockerExecArgs(name string, agentArgs []string, tty bool, env map[string]string) []string {
