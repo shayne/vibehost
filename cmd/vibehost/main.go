@@ -1,8 +1,10 @@
 package main
 
 import (
+	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"encoding/hex"
 	"flag"
 	"fmt"
 	"net"
@@ -13,6 +15,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"time"
 
 	"golang.org/x/term"
 
@@ -114,9 +117,10 @@ func main() {
 			os.Exit(1)
 		}
 		openServer = server
-		extraEnv["VIBEHOST_XDG_OPEN_SOCKET"] = xdgOpenSocketPath()
+		socketPath := newXdgOpenSocketPath()
+		extraEnv["VIBEHOST_XDG_OPEN_SOCKET"] = socketPath
 		remoteSocket = &sshcmd.RemoteSocketForward{
-			RemotePath: xdgOpenSocketPath(),
+			RemotePath: socketPath,
 			LocalHost:  "localhost",
 			LocalPort:  port,
 		}
@@ -511,8 +515,14 @@ func isLocalHost(host string) bool {
 	}
 }
 
-func xdgOpenSocketPath() string {
-	return "/tmp/vibehost-open.sock"
+func newXdgOpenSocketPath() string {
+	const prefix = "/tmp/vibehost-open-"
+	const suffix = ".sock"
+	buf := make([]byte, 8)
+	if _, err := rand.Read(buf); err == nil {
+		return prefix + hex.EncodeToString(buf) + suffix
+	}
+	return fmt.Sprintf("%s%d-%d%s", prefix, os.Getpid(), time.Now().UnixNano(), suffix)
 }
 
 func startOpenListener() (*http.Server, int, error) {
