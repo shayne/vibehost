@@ -51,3 +51,4 @@ ok  	vibehost/internal/target	(cached) and \.
 2026-01-17: Added bin/vibehost-integration host-run script with a mise task to validate server/container wiring. Ran `mise run test` and `mise run vet`; `mise run integration` failed because Docker is not available on this host.
 2026-01-17: Clarified PRD completion status; integration tests require Docker and must run before creating the sentinel file.
 2026-01-17: Fixed Dockerfile agent wrapper generation, added --cgroupns=host to keep systemd containers running, ran host integration tests, and marked PRD complete (created sentinel file). Ran `mise run integration`, `mise run test`, and `mise run vet`.
+2026-01-17: Added curl | bash client install script (bin/vibehost-install) with env-configurable install dir/binary name and GitHub release downloads. Ran `mise run test` and `mise run vet`.

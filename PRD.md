@@ -52,6 +52,11 @@ Building and running "vibe-coded" apps with agent assistance typically requires 
 - Built-in skills for service setup (web, cron, background services).
 - Port mapping strategy: container 8080 -> host 8080 (first app), host 8081, 8082 for additional apps.
 - Snapshot/restore via Docker commit (or equivalent) triggered from host or container.
+- Client-side installation script (curl | bash) to install the `vibehost` binary.
+- Host bootstrap flow over SSH to prepare a new Ubuntu host for `vibehost`.
+- Client-side reverse proxy/tunnel so localhost access works during an active session.
+- Forwarding `xdg-open` calls from container to the client machine.
+- Project documentation: README (overview + hello-world example) and DEVELOPMENT (setup + workflow).
 
 ### Out of Scope
 - TLS termination, domains, or ingress configuration.
@@ -72,6 +77,25 @@ Building and running "vibe-coded" apps with agent assistance typically requires 
   - Acceptance: Skills are available in the agent runtime and are discoverable.
 - [x] R7: Snapshot and restore are supported via CLI and in-container commands.
   - Acceptance: `vibehost <app> snapshot` creates a restorable image; `restore` can roll back state.
+- [x] R8: Provide a client install script that supports `curl | bash` to install `vibehost`.
+  - Acceptance: A new user can install the client in one command on a fresh machine and run `vibehost --version` successfully.
+- [ ] R9: Provide a host bootstrap command that connects via SSH and prepares an Ubuntu host.
+  - Acceptance: `vibehost bootstrap <host>` installs Docker, configures the server daemon, and validates required dependencies; fails fast on non-Ubuntu.
+  - Acceptance: If the SSH user is non-root, warn about sudo usage and ensure Docker group membership; prompt to `newgrp docker` or reconnect as needed.
+- [ ] R10: While `vibehost <app>` is running, the client provides a localhost reverse proxy to the app's host port mapping.
+  - Acceptance: Visiting `http://localhost:<host-port>` on the client reaches the app running in the container without manual tunnel setup.
+- [ ] R11: The container knows its internal and externally reachable ports via environment variables.
+  - Acceptance: `VIBEHOST_APP_PORT=8080` and `VIBEHOST_HOST_PORT=<host-port>` are available inside the container.
+- [ ] R12: `xdg-open` calls inside the container are forwarded to the client machine.
+  - Acceptance: A call to `xdg-open http://localhost:<host-port>` inside the container opens the user’s local browser.
+- [ ] R13: Provide project documentation for users and contributors.
+  - Acceptance: `README.md` provides a complete start-to-finish flow from zero setup to:
+    - installing the client
+    - bootstrapping a host
+    - starting `vibehost myapp`
+    - using Codex to create a hello-world HTTP server
+    - accessing the app in a local browser via localhost proxy
+  - Acceptance: `DEVELOPMENT.md` explains local setup, build/test workflow, and how to run integration/E2E scripts.
 
 ## UX and CLI Design
 - `vibehost <app>`: enter agent session on default host.
@@ -80,6 +104,7 @@ Building and running "vibe-coded" apps with agent assistance typically requires 
 - `vibehost <app> snapshots`: list snapshots for the app.
 - `vibehost <app> restore <snapshot>`: restore app state.
 - `vibehost <app> shell`: open a shell without agent (optional).
+- `vibehost bootstrap [<host>]`: prepare a remote Ubuntu host over SSH (default host if omitted).
 - In-container: `vibehost-container snapshot|snapshots|restore <snapshot>`.
 - `vibehost config`: set defaults (host, agent provider, etc.).
 - `vibehost --agent <provider> <app>`: override agent provider for this session.
@@ -95,11 +120,14 @@ Building and running "vibe-coded" apps with agent assistance typically requires 
 2) Client SSHs to host and runs the server CLI (TTY/PTY required).
 3) Server checks for app container; if missing, prompt to create (default yes).
 4) Server starts/attaches container, launches configured agent TUI.
-5) User interacts in a full TTY session backed by the server (multiplexed if needed).
+5) Client starts a localhost reverse proxy for the app's host port.
+6) User interacts in a full TTY session backed by the server (multiplexed if needed).
+7) If the container triggers `xdg-open`, it is forwarded to the client.
 
 ## Configuration
 - XDG config includes default host and named hosts.
 - App naming is `<app>` with optional `@<host>` suffix.
+- Client install script target (binary name, install dir) is configurable via env vars.
 
 ## Assumptions
 - Remote VM is reachable from the client.
@@ -107,17 +135,25 @@ Building and running "vibe-coded" apps with agent assistance typically requires 
 - Agent tools can be installed via `npx -y ...@latest`.
 - Port 8080 is the default internal port for web apps.
 - The host VM is a Linux system with root access for setup.
+- Bootstrap targets Ubuntu and exits on non-Ubuntu hosts.
 - The repo uses `mise` for all tooling and task execution.
 
 ## Risks and Open Issues
 - Port collision and mapping strategy for many apps on the same host.
 - Snapshot size and performance for large app states.
 - Security model for "full approvals" in agent sessions.
+- Localhost reverse proxy conflicts with existing client ports.
+- Host bootstrap reliability across Ubuntu versions and minimal images.
 
 ## Success Metrics
 - Time to first agent session from fresh install (< 2 minutes).
 - Successful web app launch on mapped port with no manual wiring.
 - Snapshot/restore success rate > 95% in basic scenarios.
+- Client install success rate > 95% using curl | bash on a fresh machine.
+- Host bootstrap completes in < 5 minutes on a fresh Ubuntu VM.
+- Localhost reverse proxy success rate > 95% for active sessions.
+- `xdg-open` forwarding success rate > 90% for URLs.
+- Documentation completeness: README + DEVELOPMENT present and up-to-date.
 
 ## Milestones (initial)
 - M1: CLI + daemon + container bring-up with agent session.
@@ -144,6 +180,7 @@ Building and running "vibe-coded" apps with agent assistance typically requires 
   - Allocates ports and stores mappings.
   - Provides TTY/PTY session handling and multiplexing.
   - Prompts to create app container if missing (default yes).
+  - Emits host port mapping to the client for proxy setup.
 - Expose a server CLI entrypoint for SSH execution.
 
 ### Phase 3: Client CLI
@@ -151,6 +188,18 @@ Building and running "vibe-coded" apps with agent assistance typically requires 
   - Resolves host via config (`vibehost config`).
   - SSHs to host and runs server CLI with TTY passthrough.
   - Supports `vibehost <app>` and snapshot/restore commands.
+  - Starts/stops a localhost reverse proxy tied to the session lifecycle.
+  - Forwards `xdg-open` requests from the container to the client.
+  - Provides `vibehost bootstrap` for host setup over SSH.
+
+### Phase 3.5: Installation + Bootstrap
+- Publish a client install script that supports `curl | bash`.
+- Implement `vibehost bootstrap` to prepare an Ubuntu host.
+- Bootstrap flow must:
+  - Detect Ubuntu and exit with a clear error if not.
+  - Install Docker and any server daemon dependencies.
+  - Ensure the SSH user can run Docker (sudo + docker group).
+  - Prompt when a reconnect/newgrp is required.
 
 Progress Notes:
 - Implemented initial client-side target parsing + config-based host/alias resolution in Go (no SSH yet).
@@ -185,6 +234,7 @@ Progress Notes:
 - Added a host-run integration test script plus a `mise run integration` task to validate server/container wiring (requires Docker on the host).
 - Fixed Dockerfile agent wrapper generation to avoid Dockerfile parsing errors and ensured systemd containers stay running with `--cgroupns=host`.
 - Ran host integration tests on a Docker-capable host and marked the PRD complete.
+- Added a curl | bash client install script with configurable install dir/binary name and GitHub release downloads.
 
 ### Phase 4: Local E2E Test (localhost SSH)
 - Treat the VM as both client + server.
@@ -234,6 +284,24 @@ Progress Notes:
 - [x] First app maps container 8080 -> host 8080.
 - [x] Second app maps container 8080 -> host 8081.
 - [x] Mapping is stable across restarts and stored in server state.
+
+### Localhost Reverse Proxy
+- [ ] When `vibehost <app>` is active, the client exposes `http://localhost:<host-port>` for the app.
+- [ ] Proxy shuts down cleanly when the session exits.
+- [ ] Port conflicts on the client are detected and reported.
+
+### xdg-open Forwarding
+- [ ] `xdg-open` inside the container triggers a client-side open.
+- [ ] URLs are validated/sanitized before forwarding.
+
+### Install + Bootstrap
+- [x] `curl | bash` installs the client binary and prints next steps.
+- [ ] `vibehost bootstrap <host>` validates Ubuntu, installs Docker, configures server daemon.
+- [ ] Non-root bootstrap warns about sudo usage and docker group membership.
+
+### Documentation
+- [ ] `README.md` provides a short overview and hello-world prompt example.
+- [ ] `DEVELOPMENT.md` describes local setup and the dev/test workflow.
 
 ### Snapshot/Restore
 - [x] `vibehost <app> snapshot` creates a restorable snapshot.
