@@ -13,6 +13,11 @@ type Resolved struct {
 	HostAlias string
 }
 
+type ResolvedHost struct {
+	Host      string
+	HostAlias string
+}
+
 func Resolve(raw string, cfg config.Config) (Resolved, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
@@ -32,14 +37,22 @@ func Resolve(raw string, cfg config.Config) (Resolved, error) {
 		}
 	}
 
-	if cfg.Hosts != nil {
-		if resolved, ok := cfg.Hosts[host]; ok {
-			alias = host
-			host = resolved
+	alias, host = resolveHostAlias(host, cfg)
+
+	return Resolved{App: app, Host: host, HostAlias: alias}, nil
+}
+
+func ResolveHost(raw string, cfg config.Config) (ResolvedHost, error) {
+	host := strings.TrimSpace(raw)
+	if host == "" {
+		host = strings.TrimSpace(cfg.DefaultHost)
+		if host == "" {
+			return ResolvedHost{}, fmt.Errorf("no host provided and no default host configured")
 		}
 	}
 
-	return Resolved{App: app, Host: host, HostAlias: alias}, nil
+	alias, host := resolveHostAlias(host, cfg)
+	return ResolvedHost{Host: host, HostAlias: alias}, nil
 }
 
 func splitTarget(raw string) (string, string, error) {
@@ -58,4 +71,13 @@ func splitTarget(raw string) (string, string, error) {
 	}
 
 	return app, host, nil
+}
+
+func resolveHostAlias(host string, cfg config.Config) (string, string) {
+	if cfg.Hosts != nil {
+		if resolved, ok := cfg.Hosts[host]; ok {
+			return host, resolved
+		}
+	}
+	return "", host
 }

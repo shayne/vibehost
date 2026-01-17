@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -18,12 +19,16 @@ import (
 func main() {
 	args := os.Args[1:]
 	if len(args) < 1 {
-		fmt.Fprintln(os.Stderr, "Usage: vibehost [--agent provider] <app> | vibehost [--agent provider] <app>@<host> | vibehost [--agent provider] <app> snapshot | vibehost [--agent provider] <app> snapshots | vibehost [--agent provider] <app> restore <snapshot> | vibehost <app> shell | vibehost config [options]")
+		fmt.Fprintln(os.Stderr, "Usage: vibehost [--agent provider] <app> | vibehost [--agent provider] <app>@<host> | vibehost [--agent provider] <app> snapshot | vibehost [--agent provider] <app> snapshots | vibehost [--agent provider] <app> restore <snapshot> | vibehost <app> shell | vibehost bootstrap [<host>] | vibehost config [options]")
 		return
 	}
 
 	if args[0] == "config" {
 		handleConfig(args[1:])
+		return
+	}
+	if args[0] == "bootstrap" {
+		handleBootstrap(args[1:])
 		return
 	}
 
@@ -37,7 +42,7 @@ func main() {
 
 	remaining := fs.Args()
 	if len(remaining) < 1 || len(remaining) > 3 {
-		fmt.Fprintln(os.Stderr, "Usage: vibehost [--agent provider] <app> | vibehost [--agent provider] <app>@<host> | vibehost [--agent provider] <app> snapshot | vibehost [--agent provider] <app> snapshots | vibehost [--agent provider] <app> restore <snapshot> | vibehost <app> shell | vibehost config [options]")
+		fmt.Fprintln(os.Stderr, "Usage: vibehost [--agent provider] <app> | vibehost [--agent provider] <app>@<host> | vibehost [--agent provider] <app> snapshot | vibehost [--agent provider] <app> snapshots | vibehost [--agent provider] <app> restore <snapshot> | vibehost <app> shell | vibehost bootstrap [<host>] | vibehost config [options]")
 		os.Exit(2)
 	}
 
@@ -212,4 +217,183 @@ func showConfig(cfg config.Config, path string) {
 		os.Exit(1)
 	}
 	fmt.Fprintf(os.Stdout, "Config path: %s\n%s\n", path, string(data))
+}
+
+func handleBootstrap(args []string) {
+	fs := flag.NewFlagSet("vibehost bootstrap", flag.ContinueOnError)
+	fs.SetOutput(os.Stderr)
+	if err := fs.Parse(args); err != nil {
+		os.Exit(2)
+	}
+	if fs.NArg() > 1 {
+		fmt.Fprintln(os.Stderr, "Usage: vibehost bootstrap [<host>]")
+		os.Exit(2)
+	}
+
+	hostArg := ""
+	if fs.NArg() == 1 {
+		hostArg = fs.Arg(0)
+	}
+
+	cfg, _, err := config.Load()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to load config: %v\n", err)
+		os.Exit(1)
+	}
+
+	resolved, err := target.ResolveHost(hostArg, cfg)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "invalid host: %v\n", err)
+		os.Exit(2)
+	}
+
+	if _, err := exec.LookPath("ssh"); err != nil {
+		fmt.Fprintln(os.Stderr, "ssh is required but was not found in PATH")
+		os.Exit(1)
+	}
+
+	tty := term.IsTerminal(int(os.Stdin.Fd())) && term.IsTerminal(int(os.Stdout.Fd()))
+	if !tty {
+		fmt.Fprintln(os.Stderr, "bootstrap may require sudo; run from a terminal if you are prompted for a password")
+	}
+
+	command := bootstrapCommand(bootstrapScript())
+	remoteArgs := []string{"bash", "-lc", command}
+	sshArgs := sshcmd.BuildArgs(resolved.Host, remoteArgs, tty)
+
+	cmd := exec.Command("ssh", sshArgs...)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			os.Exit(exitErr.ExitCode())
+		}
+		fmt.Fprintf(os.Stderr, "failed to start ssh: %v\n", err)
+		os.Exit(1)
+	}
+}
+
+func bootstrapScript() string {
+	return `set -euo pipefail
+
+if [ ! -f /etc/os-release ]; then
+  echo "missing /etc/os-release; cannot verify OS" >&2
+  exit 1
+fi
+
+. /etc/os-release
+if [ "${ID:-}" != "ubuntu" ]; then
+  echo "unsupported OS: ${ID:-unknown}; expected ubuntu" >&2
+  exit 1
+fi
+
+need_cmd() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+SUDO=""
+if [ "$(id -u)" -ne 0 ]; then
+  if ! need_cmd sudo; then
+    echo "sudo is required to bootstrap as a non-root user" >&2
+    exit 1
+  fi
+  SUDO="sudo"
+  if ! sudo -n true 2>/dev/null; then
+    echo "sudo password may be required during bootstrap" >&2
+  fi
+fi
+
+if ! need_cmd curl && ! need_cmd wget; then
+  $SUDO apt-get update -y
+  $SUDO apt-get install -y curl ca-certificates
+fi
+
+if ! need_cmd docker; then
+  if need_cmd curl; then
+    curl -fsSL https://get.docker.com | $SUDO sh
+  else
+    wget -qO- https://get.docker.com | $SUDO sh
+  fi
+fi
+
+if need_cmd systemctl; then
+  $SUDO systemctl enable --now docker
+fi
+
+if [ "$(id -u)" -ne 0 ]; then
+  if ! getent group docker >/dev/null 2>&1; then
+    $SUDO groupadd docker
+  fi
+  if ! id -nG "$USER" | tr ' ' '\n' | grep -qx docker; then
+    $SUDO usermod -aG docker "$USER"
+    echo "added $USER to docker group; run 'newgrp docker' or reconnect to apply" >&2
+  fi
+fi
+
+VIBEHOST_SERVER_REPO="${VIBEHOST_SERVER_REPO:-vibehost/vibehost}"
+VIBEHOST_SERVER_VERSION="${VIBEHOST_SERVER_VERSION:-latest}"
+VIBEHOST_SERVER_INSTALL_DIR="${VIBEHOST_SERVER_INSTALL_DIR:-/usr/local/bin}"
+VIBEHOST_SERVER_BIN="${VIBEHOST_SERVER_BIN:-vibehost-server}"
+
+os="$(uname -s | tr '[:upper:]' '[:lower:]')"
+arch_raw="$(uname -m)"
+case "$arch_raw" in
+  x86_64|amd64)
+    arch="amd64"
+    ;;
+  arm64|aarch64)
+    arch="arm64"
+    ;;
+  *)
+    echo "unsupported architecture: $arch_raw" >&2
+    exit 1
+    ;;
+esac
+
+if [ "$os" != "linux" ]; then
+  echo "unsupported OS: $os; expected linux" >&2
+  exit 1
+fi
+
+asset="vibehost-server-${os}-${arch}"
+if [ "$VIBEHOST_SERVER_VERSION" = "latest" ]; then
+  download_url="https://github.com/${VIBEHOST_SERVER_REPO}/releases/latest/download/${asset}"
+else
+  version="$VIBEHOST_SERVER_VERSION"
+  case "$version" in
+    v*)
+      ;;
+    *)
+      version="v$version"
+      ;;
+  esac
+  download_url="https://github.com/${VIBEHOST_SERVER_REPO}/releases/download/${version}/${asset}"
+fi
+
+tmp_file="$(mktemp)"
+trap 'rm -f "$tmp_file"' EXIT
+
+if need_cmd curl; then
+  curl -fsSL "$download_url" >"$tmp_file"
+else
+  wget -qO- "$download_url" >"$tmp_file"
+fi
+
+$SUDO install -m 0755 "$tmp_file" "$VIBEHOST_SERVER_INSTALL_DIR/$VIBEHOST_SERVER_BIN"
+echo "bootstrap complete"
+`
+}
+
+func bootstrapCommand(script string) string {
+	encoded := base64.StdEncoding.EncodeToString([]byte(script))
+	return "echo " + shellQuote(encoded) + " | base64 -d | bash"
+}
+
+func shellQuote(value string) string {
+	if value == "" {
+		return "''"
+	}
+	return "'" + strings.ReplaceAll(value, "'", "'\"'\"'") + "'"
 }

@@ -79,7 +79,7 @@ Building and running "vibe-coded" apps with agent assistance typically requires 
   - Acceptance: `vibehost <app> snapshot` creates a restorable image; `restore` can roll back state.
 - [x] R8: Provide a client install script that supports `curl | bash` to install `vibehost`.
   - Acceptance: A new user can install the client in one command on a fresh machine and run `vibehost --version` successfully.
-- [ ] R9: Provide a host bootstrap command that connects via SSH and prepares an Ubuntu host.
+- [x] R9: Provide a host bootstrap command that connects via SSH and prepares an Ubuntu host.
   - Acceptance: `vibehost bootstrap <host>` installs Docker, configures the server daemon, and validates required dependencies; fails fast on non-Ubuntu.
   - Acceptance: If the SSH user is non-root, warn about sudo usage and ensure Docker group membership; prompt to `newgrp docker` or reconnect as needed.
 - [ ] R10: While `vibehost <app>` is running, the client provides a localhost reverse proxy to the app's host port mapping.
@@ -235,6 +235,7 @@ Progress Notes:
 - Fixed Dockerfile agent wrapper generation to avoid Dockerfile parsing errors and ensured systemd containers stay running with `--cgroupns=host`.
 - Ran host integration tests on a Docker-capable host and marked the PRD complete.
 - Added a curl | bash client install script with configurable install dir/binary name and GitHub release downloads.
+- Added `vibehost bootstrap` to validate Ubuntu over SSH, install Docker, install `vibehost-server`, and warn about docker group membership for non-root users.
 
 ### Phase 4: Local E2E Test (localhost SSH)
 - Treat the VM as both client + server.
@@ -296,8 +297,8 @@ Progress Notes:
 
 ### Install + Bootstrap
 - [x] `curl | bash` installs the client binary and prints next steps.
-- [ ] `vibehost bootstrap <host>` validates Ubuntu, installs Docker, configures server daemon.
-- [ ] Non-root bootstrap warns about sudo usage and docker group membership.
+- [x] `vibehost bootstrap <host>` validates Ubuntu, installs Docker, configures server daemon.
+- [x] Non-root bootstrap warns about sudo usage and docker group membership.
 
 ### Documentation
 - [ ] `README.md` provides a short overview and hello-world prompt example.

@@ -73,3 +73,54 @@ func TestResolveRejectsInvalidTargets(t *testing.T) {
 		}
 	}
 }
+
+func TestResolveHostUsesDefault(t *testing.T) {
+	cfg := config.Config{DefaultHost: "host-a"}
+	resolved, err := ResolveHost("", cfg)
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if resolved.Host != "host-a" {
+		t.Fatalf("expected host host-a, got %q", resolved.Host)
+	}
+	if resolved.HostAlias != "" {
+		t.Fatalf("expected empty alias, got %q", resolved.HostAlias)
+	}
+}
+
+func TestResolveHostUsesExplicit(t *testing.T) {
+	cfg := config.Config{DefaultHost: "host-a"}
+	resolved, err := ResolveHost("host-b", cfg)
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if resolved.Host != "host-b" {
+		t.Fatalf("expected host host-b, got %q", resolved.Host)
+	}
+}
+
+func TestResolveHostResolvesAlias(t *testing.T) {
+	cfg := config.Config{
+		DefaultHost: "host-a",
+		Hosts: map[string]string{
+			"prod": "ssh://prod.example.com",
+		},
+	}
+	resolved, err := ResolveHost("prod", cfg)
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if resolved.Host != "ssh://prod.example.com" {
+		t.Fatalf("expected resolved host, got %q", resolved.Host)
+	}
+	if resolved.HostAlias != "prod" {
+		t.Fatalf("expected alias prod, got %q", resolved.HostAlias)
+	}
+}
+
+func TestResolveHostMissingDefault(t *testing.T) {
+	cfg := config.Config{}
+	if _, err := ResolveHost("", cfg); err == nil {
+		t.Fatalf("expected error for missing default host")
+	}
+}
