@@ -1,1 +1,2 @@
 2026-01-17: Implemented initial Go client target parsing and host/alias resolution with tests; added base module and config loader. Ran `mise exec -- go test ./...`.
+2026-01-17: Wired client CLI to invoke `ssh` with TTY passthrough for `vibehost <app>` and added ssh command builder. Ran `mise exec -- go test ./...` and `mise exec -- go vet ./...`.

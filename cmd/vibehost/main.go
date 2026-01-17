@@ -3,8 +3,10 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/exec"
 
 	"vibehost/internal/config"
+	"vibehost/internal/sshcmd"
 	"vibehost/internal/target"
 )
 
@@ -32,6 +34,24 @@ func main() {
 		os.Exit(2)
 	}
 
-	fmt.Printf("vibehost target resolved: app=%s host=%s\n", resolved.App, resolved.Host)
-	fmt.Println("server connection not implemented yet")
+	if _, err := exec.LookPath("ssh"); err != nil {
+		fmt.Fprintln(os.Stderr, "ssh is required but was not found in PATH")
+		os.Exit(1)
+	}
+
+	remoteArgs := sshcmd.RemoteArgs(resolved.App)
+	sshArgs := sshcmd.BuildArgs(resolved.Host, remoteArgs)
+
+	cmd := exec.Command("ssh", sshArgs...)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			os.Exit(exitErr.ExitCode())
+		}
+		fmt.Fprintf(os.Stderr, "failed to start ssh: %v\n", err)
+		os.Exit(1)
+	}
 }

@@ -150,6 +150,7 @@ Building and running "vibe-coded" apps with agent assistance typically requires 
 
 Progress Notes:
 - Implemented initial client-side target parsing + config-based host/alias resolution in Go (no SSH yet).
+- Added SSH invocation with TTY passthrough in the client CLI; errors clearly if SSH is missing.
 
 ### Phase 4: Local E2E Test (localhost SSH)
 - Treat the VM as both client + server.
