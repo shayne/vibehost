@@ -147,6 +147,7 @@ func main() {
 	sshArgs := sshcmd.BuildArgsWithForwards(resolved.Host, remoteArgs, tty, forward, remoteSocket)
 
 	cmd := exec.Command("ssh", sshArgs...)
+	cmd.Env = normalizedSshEnv()
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -313,6 +314,7 @@ func handleBootstrap(args []string) {
 	sshArgs = append([]string{"-o", "LogLevel=ERROR"}, sshArgs...)
 
 	cmd := exec.Command("ssh", sshArgs...)
+	cmd.Env = normalizedSshEnv()
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -462,6 +464,7 @@ func resolveHostPort(resolved target.Resolved, agentProvider string) (int, error
 	remoteArgs := sshcmd.RemoteArgs(resolved.App, agentProvider, []string{"port"}, nil)
 	sshArgs := sshcmd.BuildArgs(resolved.Host, remoteArgs, false)
 	cmd := exec.Command("ssh", sshArgs...)
+	cmd.Env = normalizedSshEnv()
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		trimmed := strings.TrimSpace(string(output))
@@ -601,4 +604,43 @@ func openURL(raw string) error {
 		}
 	}
 	return fmt.Errorf("no opener available")
+}
+
+func normalizedSshEnv() []string {
+	termValue := normalizeTermForSsh(os.Getenv("TERM"))
+	if termValue == "" || termValue == os.Getenv("TERM") {
+		return os.Environ()
+	}
+	return replaceEnv(os.Environ(), "TERM", termValue)
+}
+
+func normalizeTermForSsh(termValue string) string {
+	value := strings.TrimSpace(termValue)
+	if value == "" {
+		return ""
+	}
+	switch strings.ToLower(value) {
+	case "xterm-ghostty", "ghostty":
+		return "xterm-256color"
+	default:
+		return value
+	}
+}
+
+func replaceEnv(env []string, key string, value string) []string {
+	prefix := key + "="
+	out := make([]string, 0, len(env)+1)
+	replaced := false
+	for _, entry := range env {
+		if strings.HasPrefix(entry, prefix) {
+			out = append(out, prefix+value)
+			replaced = true
+			continue
+		}
+		out = append(out, entry)
+	}
+	if !replaced {
+		out = append(out, prefix+value)
+	}
+	return out
 }
