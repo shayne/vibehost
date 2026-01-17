@@ -70,7 +70,7 @@ Building and running "vibe-coded" apps with agent assistance typically requires 
   - Acceptance: User can choose provider at launch time or via config.
 - [x] R6: Built-in skills guide agents on web services, cron jobs, and background services.
   - Acceptance: Skills are available in the agent runtime and are discoverable.
-- [ ] R7: Snapshot and restore are supported via CLI and in-container commands.
+- [x] R7: Snapshot and restore are supported via CLI and in-container commands.
   - Acceptance: `vibehost <app> snapshot` creates a restorable image; `restore` can roll back state.
 
 ## UX and CLI Design
@@ -80,6 +80,7 @@ Building and running "vibe-coded" apps with agent assistance typically requires 
 - `vibehost <app> snapshots`: list snapshots for the app.
 - `vibehost <app> restore <snapshot>`: restore app state.
 - `vibehost <app> shell`: open a shell without agent (optional).
+- In-container: `vibehost-container snapshot|snapshots|restore <snapshot>`.
 - `vibehost config`: set defaults (host, agent provider, etc.).
 - `vibehost --agent <provider> <app>`: override agent provider for this session.
 
@@ -164,6 +165,8 @@ Progress Notes:
 - Baked a demo systemd unit into the container image to validate background service enablement.
 - Added `--agent` override to `vibehost` so users can select a provider per launch without changing config.
 - Added `vibehost <app> shell` to open a non-agent shell session inside the container.
+- Added `vibehost-container` in-container commands for snapshot/restore/list and passed container metadata/env plus Docker socket into the container for self-management.
+- Added `vibehost config --host` alias for `--default-host` to match PRD/E2E usage.
 
 ### Phase 4: Local E2E Test (localhost SSH)
 - Treat the VM as both client + server.

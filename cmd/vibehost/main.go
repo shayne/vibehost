@@ -121,6 +121,7 @@ func handleConfig(args []string) {
 	fs := flag.NewFlagSet("vibehost config", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
 
+	host := fs.String("host", "", "set default host (alias for --default-host)")
 	defaultHost := fs.String("default-host", "", "set default host")
 	agent := fs.String("agent", "", "set default agent provider")
 	var setHosts hostPairs
@@ -146,8 +147,18 @@ func handleConfig(args []string) {
 	}
 
 	updated := false
-	if *defaultHost != "" {
-		cfg.DefaultHost = *defaultHost
+	resolvedHost := ""
+	if *host != "" && *defaultHost != "" && *host != *defaultHost {
+		fmt.Fprintln(os.Stderr, "conflicting --host and --default-host values")
+		os.Exit(2)
+	}
+	if *host != "" {
+		resolvedHost = *host
+	} else if *defaultHost != "" {
+		resolvedHost = *defaultHost
+	}
+	if resolvedHost != "" {
+		cfg.DefaultHost = resolvedHost
 		updated = true
 	}
 	if *agent != "" {
