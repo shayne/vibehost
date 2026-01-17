@@ -37,6 +37,9 @@ SCRIPT\
 
 RUN mkdir -p ${CODEX_HOME}/skills
 COPY skills/ ${CODEX_HOME}/skills/
+COPY bin/vibehost-demo /usr/local/bin/vibehost-demo
+COPY systemd/vibehost-demo.service /etc/systemd/system/vibehost-demo.service
+RUN systemctl enable vibehost-demo.service
 
 VOLUME ["/sys/fs/cgroup"]
 STOPSIGNAL SIGRTMIN+3

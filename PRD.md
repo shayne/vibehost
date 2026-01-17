@@ -64,7 +64,7 @@ Building and running "vibe-coded" apps with agent assistance typically requires 
   - Acceptance: Command routes to specified host from XDG config without manual flags.
 - [ ] R3: Server daemon/CLI manages container lifecycle and port mappings per app.
   - Acceptance: First app maps container port 8080 to host 8080; subsequent apps map to 8081, 8082, etc.
-- [ ] R4: Containers include systemd support and can run background services.
+- [x] R4: Containers include systemd support and can run background services.
   - Acceptance: A basic systemd service can be installed and started inside the container.
 - [ ] R5: Agent tooling is preinstalled and selectable (Codex default; Claude Code, Gemini alternatives).
   - Acceptance: User can choose provider at launch time or via config.
@@ -160,6 +160,7 @@ Progress Notes:
 - Updated server container run/restore flow to boot systemd (`/sbin/init`) with cgroup/tmpfs mounts so background services can run.
 - Added built-in skills for web services, cron jobs, and background services to the container image.
 - Added `vibehost <app> snapshots` to list available snapshots with app name and timestamp tags.
+- Baked a demo systemd unit into the container image to validate background service enablement.
 
 ### Phase 4: Local E2E Test (localhost SSH)
 - Treat the VM as both client + server.
@@ -201,7 +202,7 @@ Progress Notes:
 - [ ] Container boots with systemd enabled.
 - [ ] Agent tooling is present and runnable (Codex default).
 - [x] Skills are present and discoverable in the agent runtime.
-- [ ] Background service can be installed and started inside the container.
+- [x] Background service can be installed and started inside the container.
 
 ### Port Mapping
 - [ ] First app maps container 8080 -> host 8080.
