@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/term"
+
 	"vibehost/internal/server"
 )
 
@@ -61,6 +63,13 @@ func main() {
 		fmt.Fprintf(os.Stderr, "failed to load server state: %v\n", err)
 		os.Exit(1)
 	}
+	stateDirty := false
+	if synced, err := syncPortsFromContainers(&state); err != nil {
+		fmt.Fprintf(os.Stderr, "failed to sync port mappings: %v\n", err)
+		os.Exit(1)
+	} else if synced {
+		stateDirty = true
+	}
 
 	containerName := fmt.Sprintf("vibehost-%s", app)
 	exists, err := containerExists(containerName)
@@ -100,7 +109,6 @@ func main() {
 	}
 
 	port, ok := state.PortForApp(app)
-	stateDirty := false
 	if exists && !ok {
 		if discovered, found, err := containerPort(containerName); err != nil {
 			fmt.Fprintf(os.Stderr, "failed to read container port: %v\n", err)
@@ -262,6 +270,55 @@ func parsePortMapping(output string) (int, bool) {
 	return 0, false
 }
 
+func syncPortsFromContainers(state *server.State) (bool, error) {
+	containers, err := listContainers()
+	if err != nil {
+		return false, err
+	}
+
+	updated := false
+	for _, name := range containers {
+		if !strings.HasPrefix(name, "vibehost-") {
+			continue
+		}
+		app := strings.TrimPrefix(name, "vibehost-")
+		if app == "" {
+			continue
+		}
+		if _, ok := state.PortForApp(app); ok {
+			continue
+		}
+		port, found, err := containerPort(name)
+		if err != nil {
+			continue
+		}
+		if !found {
+			continue
+		}
+		state.SetPort(app, port)
+		updated = true
+	}
+
+	return updated, nil
+}
+
+func listContainers() ([]string, error) {
+	out, err := exec.Command("docker", "ps", "-a", "--format", "{{.Names}}").Output()
+	if err != nil {
+		return nil, err
+	}
+	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
+	var names []string
+	for _, line := range lines {
+		name := strings.TrimSpace(line)
+		if name == "" {
+			continue
+		}
+		names = append(names, name)
+	}
+	return names, nil
+}
+
 func dockerRun(name string, app string, port int) error {
 	args := dockerRunArgs(name, app, port, defaultImage)
 	cmd := exec.Command("docker", args...)
@@ -281,12 +338,22 @@ func dockerExec(name string, agentArgs []string) error {
 	if len(agentArgs) == 0 {
 		agentArgs = []string{"/bin/bash"}
 	}
-	args := append([]string{"exec", "-it", name}, agentArgs...)
+	tty := term.IsTerminal(int(os.Stdin.Fd())) && term.IsTerminal(int(os.Stdout.Fd()))
+	args := dockerExecArgs(name, agentArgs, tty)
 	cmd := exec.Command("docker", args...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
+}
+
+func dockerExecArgs(name string, agentArgs []string, tty bool) []string {
+	args := []string{"exec", "-i"}
+	if tty {
+		args = append(args, "-t")
+	}
+	args = append(args, name)
+	return append(args, agentArgs...)
 }
 
 func snapshotRepo(app string) string {

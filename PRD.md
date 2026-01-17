@@ -169,6 +169,7 @@ Progress Notes:
 - Added `vibehost config --host` alias for `--default-host` to match PRD/E2E usage.
 - Guarded port mapping for existing containers when server state is missing and added parsing coverage for Docker port output.
 - Detect TTY availability for server `docker exec` and avoid `-t` when stdin/stdout are non-interactive; added coverage for exec arg construction.
+- Synced server port state from existing vibehost containers on startup so port assignments survive missing state files.
 
 ### Phase 4: Local E2E Test (localhost SSH)
 - Treat the VM as both client + server.
