@@ -53,3 +53,4 @@ ok  	vibehost/internal/target	(cached) and \.
 2026-01-17: Fixed Dockerfile agent wrapper generation, added --cgroupns=host to keep systemd containers running, ran host integration tests, and marked PRD complete (created sentinel file). Ran `mise run integration`, `mise run test`, and `mise run vet`.
 2026-01-17: Added curl | bash client install script (bin/vibehost-install) with env-configurable install dir/binary name and GitHub release downloads. Ran `mise run test` and `mise run vet`.
 2026-01-17: Added `vibehost bootstrap` to validate Ubuntu, install Docker, install `vibehost-server`, and warn about docker group membership for non-root users; added host resolution helper and tests. Ran `mise run test` and `mise run vet`.
+2026-01-17: Implemented client localhost reverse proxy via SSH local port forwarding, added server port lookup action, and detected local port conflicts for interactive sessions. Ran `mise run test` and `mise run vet`.

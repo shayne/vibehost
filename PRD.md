@@ -82,7 +82,7 @@ Building and running "vibe-coded" apps with agent assistance typically requires 
 - [x] R9: Provide a host bootstrap command that connects via SSH and prepares an Ubuntu host.
   - Acceptance: `vibehost bootstrap <host>` installs Docker, configures the server daemon, and validates required dependencies; fails fast on non-Ubuntu.
   - Acceptance: If the SSH user is non-root, warn about sudo usage and ensure Docker group membership; prompt to `newgrp docker` or reconnect as needed.
-- [ ] R10: While `vibehost <app>` is running, the client provides a localhost reverse proxy to the app's host port mapping.
+- [x] R10: While `vibehost <app>` is running, the client provides a localhost reverse proxy to the app's host port mapping.
   - Acceptance: Visiting `http://localhost:<host-port>` on the client reaches the app running in the container without manual tunnel setup.
 - [ ] R11: The container knows its internal and externally reachable ports via environment variables.
   - Acceptance: `VIBEHOST_APP_PORT=8080` and `VIBEHOST_HOST_PORT=<host-port>` are available inside the container.
@@ -96,6 +96,8 @@ Building and running "vibe-coded" apps with agent assistance typically requires 
     - using Codex to create a hello-world HTTP server
     - accessing the app in a local browser via localhost proxy
   - Acceptance: `DEVELOPMENT.md` explains local setup, build/test workflow, and how to run integration/E2E scripts.
+- [ ] R14: The repo will exist at https://github.com/shayne/vibehost so all references to the GitHub project, install URLs, docker container registry names, go.mod, etc. should all be based on this location
+  - Acceptance: there are no placeholders in the project for any repo or owner and the go module uses the github path and all imports use the github module name
 
 ## UX and CLI Design
 - `vibehost <app>`: enter agent session on default host.
@@ -236,6 +238,7 @@ Progress Notes:
 - Ran host integration tests on a Docker-capable host and marked the PRD complete.
 - Added a curl | bash client install script with configurable install dir/binary name and GitHub release downloads.
 - Added `vibehost bootstrap` to validate Ubuntu over SSH, install Docker, install `vibehost-server`, and warn about docker group membership for non-root users.
+- Implemented client-side localhost reverse proxy via SSH local port forwarding, added server port query action, and detect local port conflicts for interactive sessions.
 
 ### Phase 4: Local E2E Test (localhost SSH)
 - Treat the VM as both client + server.
@@ -287,9 +290,9 @@ Progress Notes:
 - [x] Mapping is stable across restarts and stored in server state.
 
 ### Localhost Reverse Proxy
-- [ ] When `vibehost <app>` is active, the client exposes `http://localhost:<host-port>` for the app.
-- [ ] Proxy shuts down cleanly when the session exits.
-- [ ] Port conflicts on the client are detected and reported.
+- [x] When `vibehost <app>` is active, the client exposes `http://localhost:<host-port>` for the app.
+- [x] Proxy shuts down cleanly when the session exits.
+- [x] Port conflicts on the client are detected and reported.
 
 ### xdg-open Forwarding
 - [ ] `xdg-open` inside the container triggers a client-side open.

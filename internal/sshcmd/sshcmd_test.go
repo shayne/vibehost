@@ -53,3 +53,28 @@ func TestBuildArgsNoTTY(t *testing.T) {
 		t.Fatalf("expected host-a, got %q", args[1])
 	}
 }
+
+func TestBuildArgsWithLocalForward(t *testing.T) {
+	remote := []string{"vibehost-server", "--agent", "codex", "myapp"}
+	forward := &LocalForward{
+		LocalPort:  8080,
+		RemoteHost: "localhost",
+		RemotePort: 8080,
+	}
+	args := BuildArgsWithLocalForward("host-a", remote, true, forward)
+	if len(args) < 4 {
+		t.Fatalf("expected args, got %v", args)
+	}
+	if args[0] != "-tt" {
+		t.Fatalf("expected -tt, got %q", args[0])
+	}
+	if args[1] != "-L" {
+		t.Fatalf("expected -L, got %q", args[1])
+	}
+	if args[2] != "8080:localhost:8080" {
+		t.Fatalf("unexpected forward args: %q", args[2])
+	}
+	if args[3] != "host-a" {
+		t.Fatalf("expected host-a, got %q", args[3])
+	}
+}

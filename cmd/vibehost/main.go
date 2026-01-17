@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 
 	"golang.org/x/term"
@@ -100,7 +102,25 @@ func main() {
 		fmt.Fprintln(os.Stderr, "interactive sessions require a TTY; run from a terminal or use snapshot/restore commands")
 		os.Exit(1)
 	}
-	sshArgs := sshcmd.BuildArgs(resolved.Host, remoteArgs, tty)
+	var forward *sshcmd.LocalForward
+	if interactive && !isLocalHost(resolved.Host) {
+		hostPort, err := resolveHostPort(resolved, agentProvider)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err.Error())
+			os.Exit(1)
+		}
+		if err := ensureLocalPortAvailable(hostPort); err != nil {
+			fmt.Fprintln(os.Stderr, err.Error())
+			os.Exit(1)
+		}
+		forward = &sshcmd.LocalForward{
+			LocalPort:  hostPort,
+			RemoteHost: "localhost",
+			RemotePort: hostPort,
+		}
+	}
+
+	sshArgs := sshcmd.BuildArgsWithLocalForward(resolved.Host, remoteArgs, tty, forward)
 
 	cmd := exec.Command("ssh", sshArgs...)
 	cmd.Stdin = os.Stdin
@@ -396,4 +416,61 @@ func shellQuote(value string) string {
 		return "''"
 	}
 	return "'" + strings.ReplaceAll(value, "'", "'\"'\"'") + "'"
+}
+
+func resolveHostPort(resolved target.Resolved, agentProvider string) (int, error) {
+	remoteArgs := sshcmd.RemoteArgs(resolved.App, agentProvider, []string{"port"})
+	sshArgs := sshcmd.BuildArgs(resolved.Host, remoteArgs, false)
+	cmd := exec.Command("ssh", sshArgs...)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		trimmed := strings.TrimSpace(string(output))
+		if trimmed == "" {
+			trimmed = err.Error()
+		}
+		return 0, fmt.Errorf("failed to resolve host port: %s", trimmed)
+	}
+	portText := strings.TrimSpace(string(output))
+	port, err := strconv.Atoi(portText)
+	if err != nil || port <= 0 {
+		return 0, fmt.Errorf("unexpected host port response: %q", portText)
+	}
+	return port, nil
+}
+
+func ensureLocalPortAvailable(port int) error {
+	if port <= 0 {
+		return fmt.Errorf("invalid host port %d", port)
+	}
+	listener, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))
+	if err != nil {
+		return fmt.Errorf("localhost port %d is unavailable: %v", port, err)
+	}
+	_ = listener.Close()
+	return nil
+}
+
+func isLocalHost(host string) bool {
+	normalized := strings.TrimSpace(host)
+	if normalized == "" {
+		return false
+	}
+	if at := strings.LastIndex(normalized, "@"); at >= 0 {
+		normalized = normalized[at+1:]
+	}
+	normalized = strings.TrimSpace(normalized)
+	if strings.HasPrefix(normalized, "[") {
+		if end := strings.Index(normalized, "]"); end > 0 {
+			normalized = normalized[1:end]
+		}
+	} else if colon := strings.Index(normalized, ":"); colon > 0 {
+		normalized = normalized[:colon]
+	}
+	normalized = strings.ToLower(strings.TrimSpace(normalized))
+	switch normalized {
+	case "localhost", "127.0.0.1", "::1":
+		return true
+	default:
+		return false
+	}
 }

@@ -29,7 +29,7 @@ func main() {
 	}
 
 	if fs.NArg() < 1 || fs.NArg() > 3 {
-		fmt.Fprintln(os.Stderr, "Usage: vibehost-server [--agent provider] <app> [snapshot|snapshots|restore <snapshot>|shell]")
+		fmt.Fprintln(os.Stderr, "Usage: vibehost-server [--agent provider] <app> [snapshot|snapshots|restore <snapshot>|shell|port]")
 		os.Exit(2)
 	}
 	args := fs.Args()
@@ -112,24 +112,24 @@ func main() {
 		return
 	}
 
-	port, ok := state.PortForApp(app)
-	if exists && !ok {
-		if discovered, found, err := containerPort(containerName); err != nil {
-			fmt.Fprintf(os.Stderr, "failed to read container port: %v\n", err)
-			os.Exit(1)
-		} else if found {
-			state.SetPort(app, discovered)
-			port = discovered
-			stateDirty = true
-		} else {
-			fmt.Fprintf(os.Stderr, "existing container has no host port mapping for 8080; recreate or restore the app\n")
-			os.Exit(1)
-		}
+	port, portDirty, err := resolvePort(&state, app, containerName, exists)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		os.Exit(1)
+	}
+	if portDirty {
+		stateDirty = true
 	}
 
-	if port == 0 {
-		port = state.AssignPort(app)
-		stateDirty = true
+	if action == "port" {
+		if stateDirty {
+			if err := server.SaveState(statePath, state); err != nil {
+				fmt.Fprintf(os.Stderr, "failed to save server state: %v\n", err)
+				os.Exit(1)
+			}
+		}
+		fmt.Fprintln(os.Stdout, port)
+		return
 	}
 
 	if action == "restore" {
@@ -205,10 +205,36 @@ func parseAction(args []string) (string, []string, error) {
 	if len(args) == 1 && args[0] == "shell" {
 		return "shell", nil, nil
 	}
+	if len(args) == 1 && args[0] == "port" {
+		return "port", nil, nil
+	}
 	if len(args) == 2 && args[0] == "restore" && strings.TrimSpace(args[1]) != "" {
 		return "restore", []string{strings.TrimSpace(args[1])}, nil
 	}
-	return "", nil, fmt.Errorf("Usage: vibehost-server [--agent provider] <app> [snapshot|snapshots|restore <snapshot>|shell]")
+	return "", nil, fmt.Errorf("Usage: vibehost-server [--agent provider] <app> [snapshot|snapshots|restore <snapshot>|shell|port]")
+}
+
+func resolvePort(state *server.State, app string, containerName string, exists bool) (int, bool, error) {
+	port, ok := state.PortForApp(app)
+	stateDirty := false
+	if exists && !ok {
+		discovered, found, err := containerPort(containerName)
+		if err != nil {
+			return 0, false, fmt.Errorf("failed to read container port: %v", err)
+		}
+		if found {
+			state.SetPort(app, discovered)
+			port = discovered
+			stateDirty = true
+		} else {
+			return 0, false, fmt.Errorf("existing container has no host port mapping for 8080; recreate or restore the app")
+		}
+	}
+	if port == 0 {
+		port = state.AssignPort(app)
+		stateDirty = true
+	}
+	return port, stateDirty, nil
 }
 
 func promptCreate(app string) bool {
