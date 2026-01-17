@@ -1,0 +1,55 @@
+package server
+
+import (
+	"path/filepath"
+	"testing"
+)
+
+func TestStateAssignPort(t *testing.T) {
+	state := State{}
+	port := state.AssignPort("app-one")
+	if port != basePort {
+		t.Fatalf("expected base port %d, got %d", basePort, port)
+	}
+
+	port = state.AssignPort("app-two")
+	if port != basePort+1 {
+		t.Fatalf("expected second port %d, got %d", basePort+1, port)
+	}
+
+	state.SetPort("app-custom", 9000)
+	port = state.AssignPort("app-three")
+	if port != basePort+2 {
+		t.Fatalf("expected next port %d, got %d", basePort+2, port)
+	}
+}
+
+func TestStateLoadSave(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tmp)
+
+	state, path, err := LoadState()
+	if err != nil {
+		t.Fatalf("load state: %v", err)
+	}
+	if len(state.Ports) != 0 {
+		t.Fatalf("expected empty state")
+	}
+	if filepath.Dir(path) != filepath.Join(tmp, "vibehost") {
+		t.Fatalf("unexpected state path: %s", path)
+	}
+
+	state.AssignPort("app-one")
+	if err := SaveState(path, state); err != nil {
+		t.Fatalf("save state: %v", err)
+	}
+
+	loaded, _, err := LoadState()
+	if err != nil {
+		t.Fatalf("reload state: %v", err)
+	}
+	port, ok := loaded.PortForApp("app-one")
+	if !ok || port != basePort {
+		t.Fatalf("expected saved port %d, got %d (ok=%v)", basePort, port, ok)
+	}
+}
