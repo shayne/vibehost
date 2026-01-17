@@ -77,6 +77,7 @@ Building and running "vibe-coded" apps with agent assistance typically requires 
 - `vibehost <app>`: enter agent session on default host.
 - `vibehost <app>@<host>`: enter agent session on a named host.
 - `vibehost <app> snapshot`: create snapshot of app container.
+- `vibehost <app> snapshots`: list snapshots for the app.
 - `vibehost <app> restore <snapshot>`: restore app state.
 - `vibehost <app> shell`: open a shell without agent (optional).
 - `vibehost config`: set defaults (host, agent provider, etc.).
@@ -158,6 +159,7 @@ Progress Notes:
 - Added a base container Dockerfile (Ubuntu + systemd + Node.js) and agent CLI wrappers that invoke `npx` for Codex, Claude Code, and Gemini.
 - Updated server container run/restore flow to boot systemd (`/sbin/init`) with cgroup/tmpfs mounts so background services can run.
 - Added built-in skills for web services, cron jobs, and background services to the container image.
+- Added `vibehost <app> snapshots` to list available snapshots with app name and timestamp tags.
 
 ### Phase 4: Local E2E Test (localhost SSH)
 - Treat the VM as both client + server.
@@ -209,7 +211,7 @@ Progress Notes:
 ### Snapshot/Restore
 - [ ] `vibehost <app> snapshot` creates a restorable snapshot.
 - [ ] `vibehost <app> restore <snapshot>` reverts container state.
-- [ ] Snapshot list shows timestamps and app name.
+- [x] Snapshot list shows timestamps and app name.
 
 ### E2E (Localhost SSH)
 - [ ] From clean VM state, `vibehost myapp` prompts to create app, defaults yes.

@@ -7,3 +7,9 @@
 2026-01-17: Added base Ubuntu systemd Dockerfile with Node.js and agent CLI wrappers that invoke `npx` for Codex/Claude Code/Gemini. Ran `mise exec -- go test ./...` and `mise exec -- go vet ./...`.
 2026-01-17: Updated server Docker run/restore to boot systemd with cgroup/tmpfs mounts for background service support. Ran `mise exec -- go test ./...` and `mise exec -- go vet ./...`.
 2026-01-17: Added built-in container skills for web services, cron jobs, and background services; wired them into the image. Ran `mise exec -- go test ./...` and `mise exec -- go vet ./...`.
+2026-01-17: Added snapshot listing command (client/server) and documented in PRD; ?   	vibehost/cmd/vibehost	[no test files]
+?   	vibehost/cmd/vibehost-server	[no test files]
+ok  	vibehost/internal/config	(cached)
+ok  	vibehost/internal/server	(cached)
+?   	vibehost/internal/sshcmd	[no test files]
+ok  	vibehost/internal/target	(cached) and .

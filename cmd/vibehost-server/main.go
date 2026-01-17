@@ -26,7 +26,7 @@ func main() {
 	}
 
 	if fs.NArg() < 1 || fs.NArg() > 3 {
-		fmt.Fprintln(os.Stderr, "Usage: vibehost-server [--agent provider] <app> [snapshot|restore <snapshot>]")
+		fmt.Fprintln(os.Stderr, "Usage: vibehost-server [--agent provider] <app> [snapshot|snapshots|restore <snapshot>]")
 		os.Exit(2)
 	}
 	args := fs.Args()
@@ -77,6 +77,22 @@ func main() {
 			os.Exit(1)
 		}
 		fmt.Fprintf(os.Stdout, "Snapshot created: %s\n", ref)
+		return
+	}
+	if action == "snapshots" {
+		tags, err := listSnapshots(app)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "failed to list snapshots: %v\n", err)
+			os.Exit(1)
+		}
+		if len(tags) == 0 {
+			fmt.Fprintf(os.Stdout, "No snapshots found for %s\n", app)
+			return
+		}
+		fmt.Fprintf(os.Stdout, "Snapshots for %s:\n", app)
+		for _, tag := range tags {
+			fmt.Fprintf(os.Stdout, "  %s %s\n", app, tag)
+		}
 		return
 	}
 
@@ -165,10 +181,13 @@ func parseAction(args []string) (string, []string, error) {
 	if len(args) == 1 && args[0] == "snapshot" {
 		return "snapshot", nil, nil
 	}
+	if len(args) == 1 && args[0] == "snapshots" {
+		return "snapshots", nil, nil
+	}
 	if len(args) == 2 && args[0] == "restore" && strings.TrimSpace(args[1]) != "" {
 		return "restore", []string{strings.TrimSpace(args[1])}, nil
 	}
-	return "", nil, fmt.Errorf("Usage: vibehost-server [--agent provider] <app> [snapshot|restore <snapshot>]")
+	return "", nil, fmt.Errorf("Usage: vibehost-server [--agent provider] <app> [snapshot|snapshots|restore <snapshot>]")
 }
 
 func promptCreate(app string) bool {
@@ -286,6 +305,24 @@ func resolveSnapshotRef(app string, name string) (string, error) {
 		return normalized, nil
 	}
 	return fmt.Sprintf("%s:%s", snapshotRepo(app), normalized), nil
+}
+
+func listSnapshots(app string) ([]string, error) {
+	repo := snapshotRepo(app)
+	out, err := exec.Command("docker", "images", "--format", "{{.Tag}}", repo).Output()
+	if err != nil {
+		return nil, err
+	}
+	var tags []string
+	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		tag := strings.TrimSpace(line)
+		if tag == "" || tag == "<none>" {
+			continue
+		}
+		tags = append(tags, tag)
+	}
+	sort.Strings(tags)
+	return tags, nil
 }
 
 func latestSnapshotRef(app string) (string, error) {

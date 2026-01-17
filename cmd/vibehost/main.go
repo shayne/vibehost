@@ -14,19 +14,41 @@ import (
 )
 
 func main() {
-	if len(os.Args) < 2 {
-		fmt.Fprintln(os.Stderr, "Usage: vibehost <app> | vibehost <app>@<host> | vibehost config [options]")
+	args := os.Args[1:]
+	if len(args) < 1 {
+		fmt.Fprintln(os.Stderr, "Usage: vibehost <app> | vibehost <app>@<host> | vibehost <app> snapshot | vibehost <app> snapshots | vibehost <app> restore <snapshot> | vibehost config [options]")
 		os.Exit(2)
 	}
 
-	arg := os.Args[1]
-	if arg == "config" {
-		handleConfig(os.Args[2:])
+	if args[0] == "config" {
+		handleConfig(args[1:])
 		return
 	}
-	if len(os.Args) != 2 {
-		fmt.Fprintln(os.Stderr, "Usage: vibehost <app> | vibehost <app>@<host> | vibehost config [options]")
+
+	if len(args) > 3 {
+		fmt.Fprintln(os.Stderr, "Usage: vibehost <app> | vibehost <app>@<host> | vibehost <app> snapshot | vibehost <app> snapshots | vibehost <app> restore <snapshot> | vibehost config [options]")
 		os.Exit(2)
+	}
+
+	targetArg := args[0]
+	actionArgs := []string{}
+	if len(args) == 2 {
+		switch args[1] {
+		case "snapshot":
+			actionArgs = []string{"snapshot"}
+		case "snapshots":
+			actionArgs = []string{"snapshots"}
+		default:
+			fmt.Fprintln(os.Stderr, "Usage: vibehost <app> snapshot | vibehost <app> snapshots")
+			os.Exit(2)
+		}
+	}
+	if len(args) == 3 {
+		if args[1] != "restore" || strings.TrimSpace(args[2]) == "" {
+			fmt.Fprintln(os.Stderr, "Usage: vibehost <app> restore <snapshot>")
+			os.Exit(2)
+		}
+		actionArgs = []string{"restore", args[2]}
 	}
 
 	cfg, _, err := config.Load()
@@ -35,7 +57,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	resolved, err := target.Resolve(arg, cfg)
+	resolved, err := target.Resolve(targetArg, cfg)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "invalid target: %v\n", err)
 		os.Exit(2)
@@ -50,7 +72,7 @@ func main() {
 	if strings.TrimSpace(agentProvider) == "" {
 		agentProvider = "codex"
 	}
-	remoteArgs := sshcmd.RemoteArgs(resolved.App, agentProvider)
+	remoteArgs := sshcmd.RemoteArgs(resolved.App, agentProvider, actionArgs)
 	sshArgs := sshcmd.BuildArgs(resolved.Host, remoteArgs)
 
 	cmd := exec.Command("ssh", sshArgs...)
