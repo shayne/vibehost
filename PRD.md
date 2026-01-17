@@ -168,6 +168,7 @@ Progress Notes:
 - Added `vibehost-container` in-container commands for snapshot/restore/list and passed container metadata/env plus Docker socket into the container for self-management.
 - Added `vibehost config --host` alias for `--default-host` to match PRD/E2E usage.
 - Guarded port mapping for existing containers when server state is missing and added parsing coverage for Docker port output.
+- Detect TTY availability for server `docker exec` and avoid `-t` when stdin/stdout are non-interactive; added coverage for exec arg construction.
 
 ### Phase 4: Local E2E Test (localhost SSH)
 - Treat the VM as both client + server.
@@ -177,6 +178,7 @@ Progress Notes:
   - Agent TUI launches in full-screen mode.
   - Port mapping works (8080 -> host).
   - Snapshot/restore commands function.
+ - Scripted smoke test: `bin/vibehost-e2e-local` builds binaries, installs them locally, runs a non-interactive shell session, validates port mapping, and exercises snapshot/restore.
 
 ### Phase 5: POC Completion Criteria
 - From a clean VM state, `vibehost myapp` works end-to-end.
@@ -225,7 +227,7 @@ Progress Notes:
 - [ ] From clean VM state, `vibehost myapp` prompts to create app, defaults yes.
 - [ ] User lands in agent TUI and can execute a command successfully.
 - [ ] Web app on 8080 inside container is reachable on host mapped port.
-- [ ] E2E test script runs non-interactively and exits 0.
+- [x] E2E test script runs non-interactively and exits 0.
 
 ## Architecture Diagram (text)
 ```

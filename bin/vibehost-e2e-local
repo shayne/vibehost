@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+app_name="${VIBEHOST_E2E_APP:-myapp}"
+agent="${VIBEHOST_E2E_AGENT:-codex}"
+
+require_cmd() {
+  if ! command -v "$1" >/dev/null 2>&1; then
+    echo "missing required command: $1" >&2
+    exit 1
+  fi
+}
+
+require_cmd ssh
+require_cmd docker
+require_cmd go
+require_cmd timeout
+
+if ! ssh -o BatchMode=yes -o ConnectTimeout=5 localhost true >/dev/null 2>&1; then
+  echo "ssh to localhost failed; ensure sshd is running and localhost is configured for key auth" >&2
+  exit 1
+fi
+
+mkdir -p "$root_dir/bin"
+
+go build -o "$root_dir/bin/vibehost" "$root_dir/cmd/vibehost"
+go build -o "$root_dir/bin/vibehost-server" "$root_dir/cmd/vibehost-server"
+
+install_bin() {
+  local src="$1"
+  local dest_dir="$2"
+  if [ -w "$dest_dir" ]; then
+    install -m 0755 "$src" "$dest_dir/"
+    return 0
+  fi
+  if command -v sudo >/dev/null 2>&1; then
+    sudo install -m 0755 "$src" "$dest_dir/"
+    return 0
+  fi
+  return 1
+}
+
+if ! install_bin "$root_dir/bin/vibehost" /usr/local/bin; then
+  echo "failed to install vibehost into /usr/local/bin; rerun as root or install manually" >&2
+  exit 1
+fi
+
+if ! install_bin "$root_dir/bin/vibehost-server" /usr/local/bin; then
+  echo "failed to install vibehost-server into /usr/local/bin; rerun as root or install manually" >&2
+  exit 1
+fi
+
+docker build -t vibehost:latest "$root_dir" >/dev/null
+
+vibehost config --host localhost --agent "$agent" >/dev/null
+
+printf '\nexit\n' | timeout 45s vibehost "$app_name" shell >/dev/null
+
+docker port "vibehost-$app_name" 8080/tcp >/dev/null
+
+vibehost "$app_name" snapshot >/dev/null
+vibehost "$app_name" restore latest >/dev/null
+
+printf '\nexit\n' | timeout 45s vibehost "$app_name" shell >/dev/null
+
+echo "E2E smoke test completed for $app_name"
