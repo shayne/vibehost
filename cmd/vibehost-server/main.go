@@ -112,9 +112,13 @@ func main() {
 		return
 	}
 	if action == "delete" {
-		if err := deleteApp(containerName, app, &state, exists); err != nil {
+		deletedState, err := deleteApp(containerName, app, &state, exists)
+		if err != nil {
 			fmt.Fprintf(os.Stderr, "failed to delete app: %v\n", err)
 			os.Exit(1)
+		}
+		if deletedState {
+			stateDirty = true
 		}
 		if stateDirty {
 			if err := server.SaveState(statePath, state); err != nil {
@@ -444,18 +448,19 @@ func snapshotRepo(app string) string {
 	return fmt.Sprintf("vibehost-snapshot-%s", app)
 }
 
-func deleteApp(containerName string, app string, state *server.State, exists bool) error {
+func deleteApp(containerName string, app string, state *server.State, exists bool) (bool, error) {
+	removed := false
 	if exists {
 		cmd := exec.Command("docker", "rm", "-f", containerName)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		if err := cmd.Run(); err != nil {
-			return err
+			return false, err
 		}
 	}
 	tags, err := listSnapshots(app)
 	if err != nil {
-		return err
+		return false, err
 	}
 	if len(tags) > 0 {
 		repo := snapshotRepo(app)
@@ -465,14 +470,14 @@ func deleteApp(containerName string, app string, state *server.State, exists boo
 			cmd.Stdout = os.Stdout
 			cmd.Stderr = os.Stderr
 			if err := cmd.Run(); err != nil {
-				return err
+				return false, err
 			}
 		}
 	}
 	if state != nil {
-		state.RemoveApp(app)
+		removed = state.RemoveApp(app)
 	}
-	return nil
+	return removed, nil
 }
 
 func createSnapshot(containerName string, app string) (string, error) {

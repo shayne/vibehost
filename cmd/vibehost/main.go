@@ -284,6 +284,8 @@ func showConfig(cfg config.Config, path string) {
 func handleBootstrap(args []string) {
 	fs := flag.NewFlagSet("vibehost bootstrap", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
+	localBootstrap := fs.Bool("local", false, "install server from local build instead of GitHub release")
+	localPath := fs.String("local-path", "", "install server from a local binary at this path")
 	if err := fs.Parse(args); err != nil {
 		os.Exit(2)
 	}
@@ -319,8 +321,24 @@ func handleBootstrap(args []string) {
 		fmt.Fprintln(os.Stderr, "bootstrap may require sudo; run from a terminal if you are prompted for a password")
 	}
 
+	env := []string{}
+	if strings.TrimSpace(*localPath) != "" {
+		*localBootstrap = true
+	}
+	if *localBootstrap {
+		remotePath, err := stageLocalServerBinary(resolved.Host, *localPath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "failed to stage local server binary: %v\n", err)
+			os.Exit(1)
+		}
+		env = append(env, "VIBEHOST_SERVER_LOCAL_PATH="+remotePath)
+	}
+
 	command := bootstrapCommand(bootstrapScript())
-	remoteArgs := []string{"bash", "-lc", command}
+	remoteArgs := []string{"bash", "-lc", shellQuote(command)}
+	if len(env) > 0 {
+		remoteArgs = append([]string{"env"}, append(env, remoteArgs...)...)
+	}
 	sshArgs := sshcmd.BuildArgs(resolved.Host, remoteArgs, tty)
 	sshArgs = append([]string{"-o", "LogLevel=ERROR"}, sshArgs...)
 
@@ -432,28 +450,37 @@ if [ "$os" != "linux" ]; then
 fi
 
 asset="vibehost-server-${os}-${arch}"
-if [ "$VIBEHOST_SERVER_VERSION" = "latest" ]; then
-  download_url="https://github.com/${VIBEHOST_SERVER_REPO}/releases/latest/download/${asset}"
+local_path="${VIBEHOST_SERVER_LOCAL_PATH:-}"
+tmp_file=""
+if [ -n "$local_path" ]; then
+  if [ ! -f "$local_path" ]; then
+    echo "missing local server binary at $local_path" >&2
+    exit 1
+  fi
+  tmp_file="$local_path"
 else
-  version="$VIBEHOST_SERVER_VERSION"
-  case "$version" in
-    v*)
-      ;;
-    *)
-      version="v$version"
-      ;;
-  esac
-  download_url="https://github.com/${VIBEHOST_SERVER_REPO}/releases/download/${version}/${asset}"
+  if [ "$VIBEHOST_SERVER_VERSION" = "latest" ]; then
+    download_url="https://github.com/${VIBEHOST_SERVER_REPO}/releases/latest/download/${asset}"
+  else
+    version="$VIBEHOST_SERVER_VERSION"
+    case "$version" in
+      v*)
+        ;;
+      *)
+        version="v$version"
+        ;;
+    esac
+    download_url="https://github.com/${VIBEHOST_SERVER_REPO}/releases/download/${version}/${asset}"
+  fi
+  tmp_file="$(mktemp)"
+  if need_cmd curl; then
+    curl -fsSL "$download_url" >"$tmp_file"
+  else
+    wget -qO- "$download_url" >"$tmp_file"
+  fi
 fi
 
-tmp_file="$(mktemp)"
 trap 'rm -f "$tmp_file"' EXIT
-
-if need_cmd curl; then
-  curl -fsSL "$download_url" >"$tmp_file"
-else
-  wget -qO- "$download_url" >"$tmp_file"
-fi
 
 $SUDO install -m 0755 "$tmp_file" "$VIBEHOST_SERVER_INSTALL_DIR/$VIBEHOST_SERVER_BIN"
 `
@@ -626,6 +653,104 @@ func promptDelete(app string) bool {
 	}
 	input = strings.TrimSpace(strings.ToLower(input))
 	return input == "y" || input == "yes"
+}
+
+func stageLocalServerBinary(host string, localPath string) (string, error) {
+	path := strings.TrimSpace(localPath)
+	if path == "" {
+		osName, arch, err := detectRemotePlatform(host)
+		if err != nil {
+			return "", err
+		}
+		if osName != "linux" {
+			return "", fmt.Errorf("unsupported remote OS: %s", osName)
+		}
+		tmpFile, err := os.CreateTemp("", "vibehost-server-")
+		if err != nil {
+			return "", err
+		}
+		tmpPath := tmpFile.Name()
+		_ = tmpFile.Close()
+		buildCmd := exec.Command("go", "build", "-o", tmpPath, "./cmd/vibehost-server")
+		buildCmd.Env = append(os.Environ(),
+			"CGO_ENABLED=0",
+			"GOOS=linux",
+			"GOARCH="+arch,
+		)
+		buildCmd.Stdout = os.Stdout
+		buildCmd.Stderr = os.Stderr
+		if err := buildCmd.Run(); err != nil {
+			return "", fmt.Errorf("build failed: %w", err)
+		}
+		path = tmpPath
+	}
+	if _, err := os.Stat(path); err != nil {
+		return "", fmt.Errorf("local binary not found: %w", err)
+	}
+	remotePath := fmt.Sprintf("/tmp/vibehost-server-%d", time.Now().UnixNano())
+	if err := uploadFileOverSSH(host, path, remotePath); err != nil {
+		return "", err
+	}
+	return remotePath, nil
+}
+
+func detectRemotePlatform(host string) (string, string, error) {
+	osName, err := sshOutput(host, []string{"uname", "-s"})
+	if err != nil {
+		return "", "", err
+	}
+	archRaw, err := sshOutput(host, []string{"uname", "-m"})
+	if err != nil {
+		return "", "", err
+	}
+	arch, err := normalizeArch(archRaw)
+	if err != nil {
+		return "", "", err
+	}
+	return strings.ToLower(osName), arch, nil
+}
+
+func normalizeArch(raw string) (string, error) {
+	value := strings.ToLower(strings.TrimSpace(raw))
+	switch value {
+	case "x86_64", "amd64":
+		return "amd64", nil
+	case "arm64", "aarch64":
+		return "arm64", nil
+	default:
+		return "", fmt.Errorf("unsupported architecture: %s", raw)
+	}
+}
+
+func sshOutput(host string, remoteArgs []string) (string, error) {
+	sshArgs := sshcmd.BuildArgs(host, remoteArgs, false)
+	cmd := exec.Command("ssh", sshArgs...)
+	cmd.Env = normalizedSshEnv()
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		trimmed := strings.TrimSpace(string(out))
+		if trimmed == "" {
+			trimmed = err.Error()
+		}
+		return "", fmt.Errorf("ssh failed: %s", trimmed)
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
+func uploadFileOverSSH(host string, localPath string, remotePath string) error {
+	remote := []string{"bash", "-lc", "cat > " + shellQuote(remotePath)}
+	sshArgs := sshcmd.BuildArgs(host, remote, false)
+	cmd := exec.Command("ssh", sshArgs...)
+	cmd.Env = normalizedSshEnv()
+	file, err := os.Open(localPath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	cmd.Stdin = file
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
 }
 
 func parseMainArgs(args []string) (string, bool, bool, []string, error) {
