@@ -10,3 +10,10 @@ run = "go test ./..."
 
 [tasks.vet]
 run = "go vet ./..."
+
+[tasks."release:build"]
+run = """
+mkdir -p dist
+GOOS=linux GOARCH=amd64 go build -o dist/vibehost-linux-amd64 ./cmd/vibehost
+GOOS=linux GOARCH=amd64 go build -o dist/vibehost-server-linux-amd64 ./cmd/vibehost-server
+"""
