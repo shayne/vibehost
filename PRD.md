@@ -66,7 +66,7 @@ Building and running "vibe-coded" apps with agent assistance typically requires 
   - Acceptance: First app maps container port 8080 to host 8080; subsequent apps map to 8081, 8082, etc.
 - [x] R4: Containers include systemd support and can run background services.
   - Acceptance: A basic systemd service can be installed and started inside the container.
-- [ ] R5: Agent tooling is preinstalled and selectable (Codex default; Claude Code, Gemini alternatives).
+- [x] R5: Agent tooling is preinstalled and selectable (Codex default; Claude Code, Gemini alternatives).
   - Acceptance: User can choose provider at launch time or via config.
 - [x] R6: Built-in skills guide agents on web services, cron jobs, and background services.
   - Acceptance: Skills are available in the agent runtime and are discoverable.
@@ -81,6 +81,7 @@ Building and running "vibe-coded" apps with agent assistance typically requires 
 - `vibehost <app> restore <snapshot>`: restore app state.
 - `vibehost <app> shell`: open a shell without agent (optional).
 - `vibehost config`: set defaults (host, agent provider, etc.).
+- `vibehost --agent <provider> <app>`: override agent provider for this session.
 
 ## System Architecture
 - Client: `vibehost` CLI on user machine.
@@ -161,6 +162,8 @@ Progress Notes:
 - Added built-in skills for web services, cron jobs, and background services to the container image.
 - Added `vibehost <app> snapshots` to list available snapshots with app name and timestamp tags.
 - Baked a demo systemd unit into the container image to validate background service enablement.
+- Added `--agent` override to `vibehost` so users can select a provider per launch without changing config.
+- Added `vibehost <app> shell` to open a non-agent shell session inside the container.
 
 ### Phase 4: Local E2E Test (localhost SSH)
 - Treat the VM as both client + server.

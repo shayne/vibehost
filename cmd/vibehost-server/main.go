@@ -26,7 +26,7 @@ func main() {
 	}
 
 	if fs.NArg() < 1 || fs.NArg() > 3 {
-		fmt.Fprintln(os.Stderr, "Usage: vibehost-server [--agent provider] <app> [snapshot|snapshots|restore <snapshot>]")
+		fmt.Fprintln(os.Stderr, "Usage: vibehost-server [--agent provider] <app> [snapshot|snapshots|restore <snapshot>|shell]")
 		os.Exit(2)
 	}
 	args := fs.Args()
@@ -46,6 +46,9 @@ func main() {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "invalid agent provider: %v\n", err)
 		os.Exit(2)
+	}
+	if action == "shell" {
+		agentArgs = []string{"/bin/bash"}
 	}
 
 	if _, err := exec.LookPath("docker"); err != nil {
@@ -184,10 +187,13 @@ func parseAction(args []string) (string, []string, error) {
 	if len(args) == 1 && args[0] == "snapshots" {
 		return "snapshots", nil, nil
 	}
+	if len(args) == 1 && args[0] == "shell" {
+		return "shell", nil, nil
+	}
 	if len(args) == 2 && args[0] == "restore" && strings.TrimSpace(args[1]) != "" {
 		return "restore", []string{strings.TrimSpace(args[1])}, nil
 	}
-	return "", nil, fmt.Errorf("Usage: vibehost-server [--agent provider] <app> [snapshot|snapshots|restore <snapshot>]")
+	return "", nil, fmt.Errorf("Usage: vibehost-server [--agent provider] <app> [snapshot|snapshots|restore <snapshot>|shell]")
 }
 
 func promptCreate(app string) bool {

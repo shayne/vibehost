@@ -16,8 +16,8 @@ import (
 func main() {
 	args := os.Args[1:]
 	if len(args) < 1 {
-		fmt.Fprintln(os.Stderr, "Usage: vibehost <app> | vibehost <app>@<host> | vibehost <app> snapshot | vibehost <app> snapshots | vibehost <app> restore <snapshot> | vibehost config [options]")
-		os.Exit(2)
+		fmt.Fprintln(os.Stderr, "Usage: vibehost [--agent provider] <app> | vibehost [--agent provider] <app>@<host> | vibehost [--agent provider] <app> snapshot | vibehost [--agent provider] <app> snapshots | vibehost [--agent provider] <app> restore <snapshot> | vibehost <app> shell | vibehost config [options]")
+		return
 	}
 
 	if args[0] == "config" {
@@ -25,30 +25,41 @@ func main() {
 		return
 	}
 
-	if len(args) > 3 {
-		fmt.Fprintln(os.Stderr, "Usage: vibehost <app> | vibehost <app>@<host> | vibehost <app> snapshot | vibehost <app> snapshots | vibehost <app> restore <snapshot> | vibehost config [options]")
+	fs := flag.NewFlagSet("vibehost", flag.ContinueOnError)
+	fs.SetOutput(os.Stderr)
+	agentOverride := fs.String("agent", "", "agent provider override (codex, claude, gemini)")
+
+	if err := fs.Parse(args); err != nil {
 		os.Exit(2)
 	}
 
-	targetArg := args[0]
+	remaining := fs.Args()
+	if len(remaining) < 1 || len(remaining) > 3 {
+		fmt.Fprintln(os.Stderr, "Usage: vibehost [--agent provider] <app> | vibehost [--agent provider] <app>@<host> | vibehost [--agent provider] <app> snapshot | vibehost [--agent provider] <app> snapshots | vibehost [--agent provider] <app> restore <snapshot> | vibehost <app> shell | vibehost config [options]")
+		os.Exit(2)
+	}
+
+	targetArg := remaining[0]
 	actionArgs := []string{}
-	if len(args) == 2 {
-		switch args[1] {
+	if len(remaining) == 2 {
+		switch remaining[1] {
 		case "snapshot":
 			actionArgs = []string{"snapshot"}
 		case "snapshots":
 			actionArgs = []string{"snapshots"}
+		case "shell":
+			actionArgs = []string{"shell"}
 		default:
-			fmt.Fprintln(os.Stderr, "Usage: vibehost <app> snapshot | vibehost <app> snapshots")
+			fmt.Fprintln(os.Stderr, "Usage: vibehost [--agent provider] <app> snapshot | vibehost [--agent provider] <app> snapshots | vibehost <app> shell")
 			os.Exit(2)
 		}
 	}
-	if len(args) == 3 {
-		if args[1] != "restore" || strings.TrimSpace(args[2]) == "" {
-			fmt.Fprintln(os.Stderr, "Usage: vibehost <app> restore <snapshot>")
+	if len(remaining) == 3 {
+		if remaining[1] != "restore" || strings.TrimSpace(remaining[2]) == "" {
+			fmt.Fprintln(os.Stderr, "Usage: vibehost [--agent provider] <app> restore <snapshot>")
 			os.Exit(2)
 		}
-		actionArgs = []string{"restore", args[2]}
+		actionArgs = []string{"restore", remaining[2]}
 	}
 
 	cfg, _, err := config.Load()
@@ -71,6 +82,9 @@ func main() {
 	agentProvider := cfg.AgentProvider
 	if strings.TrimSpace(agentProvider) == "" {
 		agentProvider = "codex"
+	}
+	if strings.TrimSpace(*agentOverride) != "" {
+		agentProvider = *agentOverride
 	}
 	remoteArgs := sshcmd.RemoteArgs(resolved.App, agentProvider, actionArgs)
 	sshArgs := sshcmd.BuildArgs(resolved.Host, remoteArgs)

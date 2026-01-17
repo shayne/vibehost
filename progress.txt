@@ -14,3 +14,11 @@ ok  	vibehost/internal/server	(cached)
 ?   	vibehost/internal/sshcmd	[no test files]
 ok  	vibehost/internal/target	(cached) and .
 2026-01-17: Baked a demo systemd unit into the container image to validate background service enablement. Ran `mise exec -- go test ./...` and `mise exec -- go vet ./...`.
+2026-01-17: Added --agent override to client CLI for per-launch provider selection; updated usage docs. Ran `mise exec -- go test ./...` and `mise exec -- go vet ./...`.
+2026-01-17: Added \ command to open a non-agent shell session (client/server). Ran \?   	vibehost/cmd/vibehost	[no test files]
+?   	vibehost/cmd/vibehost-server	[no test files]
+ok  	vibehost/internal/config	(cached)
+ok  	vibehost/internal/server	(cached)
+?   	vibehost/internal/sshcmd	[no test files]
+ok  	vibehost/internal/target	(cached) and \.
+2026-01-17: Added vibehost <app> shell command to open a non-agent shell session (client/server). Ran `mise exec -- go test ./...` and `mise exec -- go vet ./...`.
