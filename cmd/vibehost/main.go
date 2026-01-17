@@ -322,6 +322,11 @@ func handleBootstrap(args []string) {
 	}
 
 	env := []string{}
+	for _, key := range []string{"VIBEHOST_IMAGE", "VIBEHOST_SERVER_VERSION", "VIBEHOST_SERVER_REPO"} {
+		if value := strings.TrimSpace(os.Getenv(key)); value != "" {
+			env = append(env, key+"="+value)
+		}
+	}
 	if strings.TrimSpace(*localPath) != "" {
 		*localBootstrap = true
 	}
@@ -414,6 +419,18 @@ if need_cmd systemctl; then
   $SUDO systemctl enable --now docker
 fi
 
+pull_image() {
+  image="$1"
+  if [ -z "$image" ]; then
+    return 0
+  fi
+  if ! $SUDO docker pull "$image"; then
+    echo "warning: failed to pull image $image" >&2
+    return 0
+  fi
+  $SUDO docker tag "$image" "vibehost:latest" || true
+}
+
 if [ "$(id -u)" -ne 0 ]; then
   if ! getent group docker >/dev/null 2>&1; then
     $SUDO groupadd docker
@@ -428,6 +445,7 @@ VIBEHOST_SERVER_REPO="${VIBEHOST_SERVER_REPO:-shayne/vibehost}"
 VIBEHOST_SERVER_VERSION="${VIBEHOST_SERVER_VERSION:-latest}"
 VIBEHOST_SERVER_INSTALL_DIR="${VIBEHOST_SERVER_INSTALL_DIR:-/usr/local/bin}"
 VIBEHOST_SERVER_BIN="${VIBEHOST_SERVER_BIN:-vibehost-server}"
+VIBEHOST_IMAGE="${VIBEHOST_IMAGE:-}"
 
 os="$(uname -s | tr '[:upper:]' '[:lower:]')"
 arch_raw="$(uname -m)"
@@ -447,6 +465,18 @@ esac
 if [ "$os" != "linux" ]; then
   echo "unsupported OS: $os; expected linux" >&2
   exit 1
+fi
+
+if [ -z "$VIBEHOST_IMAGE" ]; then
+  if [ "$VIBEHOST_SERVER_VERSION" = "latest" ]; then
+    VIBEHOST_IMAGE="ghcr.io/${VIBEHOST_SERVER_REPO}/vibehost:latest"
+  else
+    VIBEHOST_IMAGE="ghcr.io/${VIBEHOST_SERVER_REPO}/vibehost:${VIBEHOST_SERVER_VERSION}"
+  fi
+fi
+
+if need_cmd docker; then
+  pull_image "$VIBEHOST_IMAGE"
 fi
 
 asset="vibehost-server-${os}-${arch}"
