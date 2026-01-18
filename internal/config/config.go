@@ -22,18 +22,6 @@ func Load() (Config, string, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			legacyPath, legacyErr := legacyConfigPath()
-			if legacyErr == nil {
-				if legacyData, legacyReadErr := os.ReadFile(legacyPath); legacyReadErr == nil {
-					var cfg Config
-					if err := json.Unmarshal(legacyData, &cfg); err == nil {
-						if cfg.Hosts == nil {
-							cfg.Hosts = map[string]string{}
-						}
-						return cfg, path, nil
-					}
-				}
-			}
 			return Config{Hosts: map[string]string{}}, path, nil
 		}
 		return Config{}, path, err
@@ -78,17 +66,4 @@ func configPath() (string, error) {
 	}
 
 	return filepath.Join(configHome, "viberun", "config.json"), nil
-}
-
-func legacyConfigPath() (string, error) {
-	configHome := os.Getenv("XDG_CONFIG_HOME")
-	if configHome == "" {
-		var err error
-		configHome, err = os.UserConfigDir()
-		if err != nil {
-			return "", err
-		}
-	}
-
-	return filepath.Join(configHome, "vibehost", "config.json"), nil
 }

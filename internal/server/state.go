@@ -23,18 +23,6 @@ func LoadState() (State, string, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			legacyPath, legacyErr := legacyStatePath()
-			if legacyErr == nil {
-				if legacyData, legacyReadErr := os.ReadFile(legacyPath); legacyReadErr == nil {
-					var state State
-					if err := json.Unmarshal(legacyData, &state); err == nil {
-						if state.Ports == nil {
-							state.Ports = map[string]int{}
-						}
-						return state, path, nil
-					}
-				}
-			}
 			return State{Ports: map[string]int{}}, path, nil
 		}
 		return State{}, path, err
@@ -127,17 +115,4 @@ func statePath() (string, error) {
 	}
 
 	return filepath.Join(configHome, "viberun", "server-state.json"), nil
-}
-
-func legacyStatePath() (string, error) {
-	configHome := os.Getenv("XDG_CONFIG_HOME")
-	if configHome == "" {
-		var err error
-		configHome, err = os.UserConfigDir()
-		if err != nil {
-			return "", err
-		}
-	}
-
-	return filepath.Join(configHome, "vibehost", "server-state.json"), nil
 }

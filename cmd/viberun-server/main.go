@@ -471,12 +471,7 @@ func normalizeTermValue(termValue string) string {
 	if value == "" {
 		return "xterm-256color"
 	}
-	switch strings.ToLower(value) {
-	case "xterm-ghostty", "ghostty":
-		return "xterm-256color"
-	default:
-		return value
-	}
+	return value
 }
 
 func dockerExecArgs(name string, agentArgs []string, tty bool, env map[string]string) []string {

@@ -121,12 +121,15 @@ func ensureRunSubcommand(args []string) []string {
 	if isHelpFlag(args[0]) {
 		return args
 	}
-	_, cmd := yargs.ExtractGroupAndSubcommand(args)
+	cmd := firstNonFlag(args)
+	if cmd == "" {
+		return args
+	}
 	if cmd == "help" {
 		return []string{"--help"}
 	}
 	switch cmd {
-	case "run", "config", "bootstrap", "help":
+	case "run", "config", "bootstrap":
 		return args
 	default:
 		return append([]string{"run"}, args...)
@@ -140,6 +143,16 @@ func isHelpFlag(value string) bool {
 	default:
 		return false
 	}
+}
+
+func firstNonFlag(args []string) string {
+	for _, arg := range args {
+		if strings.HasPrefix(arg, "-") {
+			continue
+		}
+		return arg
+	}
+	return ""
 }
 
 func handleRunCommand(_ context.Context, args []string) error {
@@ -446,6 +459,11 @@ func runApp(flags runFlags, args runArgs) error {
 		return fmt.Errorf("interactive sessions require a TTY; run from a terminal or use snapshot/restore commands")
 	}
 	extraEnv := map[string]string{}
+	if tty {
+		if colorTerm := strings.TrimSpace(os.Getenv("COLORTERM")); colorTerm != "" {
+			extraEnv["COLORTERM"] = colorTerm
+		}
+	}
 	if interactive && tty {
 		exists, err := remoteContainerExists(resolved, agentProvider)
 		if err != nil {
@@ -1042,16 +1060,7 @@ func normalizedSshEnv() []string {
 }
 
 func normalizeTermForSsh(termValue string) string {
-	value := strings.TrimSpace(termValue)
-	if value == "" {
-		return ""
-	}
-	switch strings.ToLower(value) {
-	case "xterm-ghostty", "ghostty":
-		return "xterm-256color"
-	default:
-		return value
-	}
+	return strings.TrimSpace(termValue)
 }
 
 func replaceEnv(env []string, key string, value string) []string {

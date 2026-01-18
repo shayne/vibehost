@@ -2,11 +2,16 @@ FROM ubuntu:24.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV CODEX_HOME=/root/.codex
+ENV LANG=C.UTF-8
+ENV LC_ALL=C.UTF-8
+ENV LC_CTYPE=C.UTF-8
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
+    ncurses-bin \
+    ncurses-term \
     s6 \
     nodejs \
     npm \
@@ -64,6 +69,10 @@ RUN set -eux; \
     "printf 'viberun-agent-check ok\\\\n'" \
     > /usr/local/bin/viberun-agent-check; \
   chmod +x /usr/local/bin/codex /usr/local/bin/claude /usr/local/bin/gemini /usr/local/bin/xdg-open /usr/local/bin/viberun-agent-check
+
+COPY ghostty-terminfo /tmp/ghostty-terminfo
+RUN tic -x /tmp/ghostty-terminfo \
+  && rm -f /tmp/ghostty-terminfo
 
 COPY bin/viberun-tmux-status /usr/local/bin/viberun-tmux-status
 COPY bin/vrctl /usr/local/bin/vrctl
