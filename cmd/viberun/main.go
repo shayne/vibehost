@@ -2,11 +2,12 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
-	"flag"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -22,257 +23,190 @@ import (
 
 	"golang.org/x/term"
 
-	"github.com/shayne/vibehost/internal/config"
-	"github.com/shayne/vibehost/internal/sshcmd"
-	"github.com/shayne/vibehost/internal/target"
+	"github.com/shayne/viberun/internal/config"
+	"github.com/shayne/viberun/internal/sshcmd"
+	"github.com/shayne/viberun/internal/target"
+	"github.com/shayne/viberun/internal/tui"
+	"github.com/shayne/yargs"
 )
 
 func main() {
-	args := os.Args[1:]
-	if len(args) < 1 {
-		fmt.Fprintln(os.Stderr, "Usage: vibehost [--agent provider] <app> | vibehost [--agent provider] <app>@<host> | vibehost [--agent provider] <app> snapshot | vibehost [--agent provider] <app> snapshots | vibehost [--agent provider] <app> restore <snapshot> | vibehost <app> shell | vibehost <app> --delete [-y] | vibehost bootstrap [<host>] | vibehost config [options]")
-		return
-	}
-
-	if args[0] == "config" {
-		handleConfig(args[1:])
-		return
-	}
-	if args[0] == "bootstrap" {
-		handleBootstrap(args[1:])
-		return
-	}
-
-	agentOverride, deleteApp, deleteYes, remaining, err := parseMainArgs(args)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err.Error())
-		os.Exit(2)
-	}
-	if len(remaining) < 1 || len(remaining) > 3 {
-		fmt.Fprintln(os.Stderr, "Usage: vibehost [--agent provider] <app> | vibehost [--agent provider] <app>@<host> | vibehost [--agent provider] <app> snapshot | vibehost [--agent provider] <app> snapshots | vibehost [--agent provider] <app> restore <snapshot> | vibehost <app> shell | vibehost <app> --delete [-y] | vibehost bootstrap [<host>] | vibehost config [options]")
-		os.Exit(2)
-	}
-
-	targetArg := remaining[0]
-	actionArgs := []string{}
-	if len(remaining) == 2 {
-		switch remaining[1] {
-		case "snapshot":
-			actionArgs = []string{"snapshot"}
-		case "snapshots":
-			actionArgs = []string{"snapshots"}
-		case "shell":
-			actionArgs = []string{"shell"}
-		default:
-			fmt.Fprintln(os.Stderr, "Usage: vibehost [--agent provider] <app> snapshot | vibehost [--agent provider] <app> snapshots | vibehost <app> shell")
-			os.Exit(2)
-		}
-	}
-	if len(remaining) == 3 {
-		if remaining[1] != "restore" || strings.TrimSpace(remaining[2]) == "" {
-			fmt.Fprintln(os.Stderr, "Usage: vibehost [--agent provider] <app> restore <snapshot>")
-			os.Exit(2)
-		}
-		actionArgs = []string{"restore", remaining[2]}
-	}
-	if deleteApp {
-		if len(actionArgs) != 0 {
-			fmt.Fprintln(os.Stderr, "Usage: vibehost [--delete] <app> | vibehost [--agent provider] <app> snapshot | vibehost [--agent provider] <app> snapshots | vibehost [--agent provider] <app> restore <snapshot> | vibehost <app> shell")
-			os.Exit(2)
-		}
-		if !deleteYes {
-			if !promptDelete(targetArg) {
-				fmt.Fprintln(os.Stdout, "delete cancelled")
-				return
-			}
-		}
-		actionArgs = []string{"delete"}
-	}
-
-	cfg, _, err := config.Load()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to load config: %v\n", err)
+	if err := runCLI(); err != nil {
+		fmt.Fprintln(os.Stderr, "Error:", err)
 		os.Exit(1)
-	}
-
-	resolved, err := target.Resolve(targetArg, cfg)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "invalid target: %v\n", err)
-		os.Exit(2)
-	}
-
-	if _, err := exec.LookPath("ssh"); err != nil {
-		fmt.Fprintln(os.Stderr, "ssh is required but was not found in PATH")
-		os.Exit(1)
-	}
-
-	agentProvider := cfg.AgentProvider
-	if strings.TrimSpace(agentProvider) == "" {
-		agentProvider = "codex"
-	}
-	if strings.TrimSpace(agentOverride) != "" {
-		agentProvider = agentOverride
-	}
-	interactive := len(actionArgs) == 0 || (len(actionArgs) == 1 && actionArgs[0] == "shell")
-	tty := interactive && term.IsTerminal(int(os.Stdin.Fd())) && term.IsTerminal(int(os.Stdout.Fd()))
-	if interactive && !tty {
-		fmt.Fprintln(os.Stderr, "interactive sessions require a TTY; run from a terminal or use snapshot/restore commands")
-		os.Exit(1)
-	}
-	extraEnv := map[string]string{}
-	if interactive && tty {
-		exists, err := remoteContainerExists(resolved, agentProvider)
-		if err != nil {
-			fmt.Fprintln(os.Stderr, err.Error())
-			os.Exit(1)
-		}
-		if !exists {
-			if !promptCreateLocal(resolved.App) {
-				fmt.Fprintln(os.Stderr, "aborted")
-				os.Exit(1)
-			}
-			extraEnv["VIBEHOST_AUTO_CREATE"] = "1"
-			localAuth, details, err := discoverLocalAuth(agentProvider)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "auth discovery failed: %v\n", err)
-			} else if localAuth != nil && promptCopyAuth(resolved.App, agentProvider, details) {
-				bundle, err := stageAuthBundle(resolved.Host, localAuth)
-				if err != nil {
-					fmt.Fprintf(os.Stderr, "failed to stage auth: %v\n", err)
-				} else if encoded, err := encodeAuthBundle(bundle); err != nil {
-					fmt.Fprintf(os.Stderr, "failed to encode auth: %v\n", err)
-				} else if encoded != "" {
-					extraEnv["VIBEHOST_AUTH_BUNDLE"] = encoded
-				}
-			}
-		}
-	}
-	var openServer *http.Server
-	var remoteSocket *sshcmd.RemoteSocketForward
-	if interactive {
-		server, port, err := startOpenListener()
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "failed to start xdg-open listener: %v\n", err)
-			os.Exit(1)
-		}
-		openServer = server
-		socketPath := newXdgOpenSocketPath()
-		extraEnv["VIBEHOST_XDG_OPEN_SOCKET"] = socketPath
-		remoteSocket = &sshcmd.RemoteSocketForward{
-			RemotePath: socketPath,
-			LocalHost:  "localhost",
-			LocalPort:  port,
-		}
-	}
-	remoteArgs := sshcmd.RemoteArgs(resolved.App, agentProvider, actionArgs, extraEnv)
-	var forward *sshcmd.LocalForward
-	if interactive && !isLocalHost(resolved.Host) {
-		hostPort, err := resolveHostPort(resolved, agentProvider)
-		if err != nil {
-			fmt.Fprintln(os.Stderr, err.Error())
-			os.Exit(1)
-		}
-		if err := ensureLocalPortAvailable(hostPort); err != nil {
-			fmt.Fprintln(os.Stderr, err.Error())
-			os.Exit(1)
-		}
-		forward = &sshcmd.LocalForward{
-			LocalPort:  hostPort,
-			RemoteHost: "localhost",
-			RemotePort: hostPort,
-		}
-	}
-
-	sshArgs := sshcmd.BuildArgsWithForwards(resolved.Host, remoteArgs, tty, forward, remoteSocket)
-
-	cmd := exec.Command("ssh", sshArgs...)
-	cmd.Env = normalizedSshEnv()
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	if err := cmd.Run(); err != nil {
-		if openServer != nil {
-			_ = openServer.Close()
-		}
-		if exitErr, ok := err.(*exec.ExitError); ok {
-			os.Exit(exitErr.ExitCode())
-		}
-		fmt.Fprintf(os.Stderr, "failed to start ssh: %v\n", err)
-		os.Exit(1)
-	}
-	if openServer != nil {
-		_ = openServer.Close()
 	}
 }
 
-type hostPairs []string
-
-func (h *hostPairs) String() string {
-	return strings.Join(*h, ",")
+func runCLI() error {
+	args := ensureRunSubcommand(os.Args[1:])
+	handlers := map[string]yargs.SubcommandHandler{
+		"run":       handleRunCommand,
+		"config":    handleConfigCommand,
+		"bootstrap": handleBootstrapCommand,
+	}
+	if err := yargs.RunSubcommands(context.Background(), args, helpConfig, struct{}{}, handlers); err != nil {
+		if errors.Is(err, yargs.ErrShown) {
+			return nil
+		}
+		return err
+	}
+	return nil
 }
 
-func (h *hostPairs) Set(value string) error {
-	if strings.TrimSpace(value) == "" {
-		return fmt.Errorf("host mapping cannot be empty")
+type runFlags struct {
+	Agent  string `flag:"agent" help:"agent provider to run (codex, claude, gemini)"`
+	Delete bool   `flag:"delete" help:"delete the app and snapshots"`
+	Yes    bool   `flag:"yes" short:"y" help:"skip confirmation prompts"`
+}
+
+type runArgs struct {
+	Target string `pos:"0" help:"app or app@host"`
+	Action string `pos:"1?" help:"snapshot|snapshots|restore|shell"`
+	Value  string `pos:"2?" help:"snapshot name for restore"`
+}
+
+type configFlags struct {
+	Host        string   `flag:"host" help:"set default host (alias for --default-host)"`
+	DefaultHost string   `flag:"default-host" help:"set default host"`
+	Agent       string   `flag:"agent" help:"set default agent provider"`
+	SetHosts    []string `flag:"set-host" help:"set host alias mapping as alias=host (repeatable)"`
+}
+
+type bootstrapFlags struct {
+	Local      bool   `flag:"local" help:"install server from local build instead of GitHub release"`
+	LocalPath  string `flag:"local-path" help:"install server from a local binary at this path"`
+	LocalImage bool   `flag:"local-image" help:"build and load the container image from the local Docker daemon"`
+}
+
+type bootstrapArgs struct {
+	Host string `pos:"0?" help:"host to bootstrap"`
+}
+
+var helpConfig = yargs.HelpConfig{
+	Command: yargs.CommandInfo{
+		Name:        "viberun",
+		Description: "CLI-first agent app host",
+		Examples: []string{
+			"viberun myapp",
+			"viberun myapp snapshot",
+			"viberun myapp restore latest",
+			"viberun myapp shell",
+			"viberun config --host myhost --agent codex",
+			"viberun bootstrap root@1.2.3.4",
+		},
+	},
+	SubCommands: map[string]yargs.SubCommandInfo{
+		"run": {
+			Name:        "run",
+			Description: "Run or manage an app session",
+			Usage:       "<app> [snapshot|snapshots|restore <snapshot>|shell]",
+			Hidden:      true,
+		},
+		"config": {
+			Name:        "config",
+			Description: "Show or update the local configuration",
+		},
+		"bootstrap": {
+			Name:        "bootstrap",
+			Description: "Install or update the host-side server and image",
+			Usage:       "[<host>]",
+		},
+	},
+}
+
+func ensureRunSubcommand(args []string) []string {
+	if len(args) == 0 {
+		return args
 	}
-	*h = append(*h, value)
+	if isHelpFlag(args[0]) {
+		return args
+	}
+	_, cmd := yargs.ExtractGroupAndSubcommand(args)
+	if cmd == "help" {
+		return []string{"--help"}
+	}
+	switch cmd {
+	case "run", "config", "bootstrap", "help":
+		return args
+	default:
+		return append([]string{"run"}, args...)
+	}
+}
+
+func isHelpFlag(value string) bool {
+	switch strings.TrimSpace(value) {
+	case "-h", "--help", "--help-llm":
+		return true
+	default:
+		return false
+	}
+}
+
+func handleRunCommand(_ context.Context, args []string) error {
+	result, err := yargs.ParseAndHandleHelp[struct{}, runFlags, runArgs](args, helpConfig)
+	if errors.Is(err, yargs.ErrShown) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	return runApp(result.SubCommandFlags, result.Args)
+}
+
+func handleConfigCommand(_ context.Context, args []string) error {
+	handleConfig(args)
+	return nil
+}
+
+func handleBootstrapCommand(_ context.Context, args []string) error {
+	handleBootstrap(args)
 	return nil
 }
 
 func handleConfig(args []string) {
-	fs := flag.NewFlagSet("vibehost config", flag.ContinueOnError)
-	fs.SetOutput(os.Stderr)
-
-	host := fs.String("host", "", "set default host (alias for --default-host)")
-	defaultHost := fs.String("default-host", "", "set default host")
-	agent := fs.String("agent", "", "set default agent provider")
-	var setHosts hostPairs
-	fs.Var(&setHosts, "set-host", "set host alias mapping as alias=host (repeatable)")
-
-	if err := fs.Parse(args); err != nil {
+	result, err := yargs.ParseAndHandleHelp[struct{}, configFlags, struct{}](args, helpConfig)
+	if errors.Is(err, yargs.ErrShown) {
+		return
+	}
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err.Error())
 		os.Exit(2)
 	}
 
+	flags := result.SubCommandFlags
 	cfg, path, err := config.Load()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to load config: %v\n", err)
 		os.Exit(1)
 	}
 
-	if fs.NFlag() == 0 && fs.NArg() == 0 {
+	if configFlagsEmpty(flags) {
 		showConfig(cfg, path)
 		return
 	}
-	if fs.NArg() != 0 {
-		fmt.Fprintln(os.Stderr, "unexpected extra arguments for config command")
-		os.Exit(2)
-	}
 
 	updated := false
-	resolvedHost := ""
-	if *host != "" && *defaultHost != "" && *host != *defaultHost {
+	resolvedHost := strings.TrimSpace(flags.DefaultHost)
+	if strings.TrimSpace(flags.Host) != "" && resolvedHost != "" && strings.TrimSpace(flags.Host) != resolvedHost {
 		fmt.Fprintln(os.Stderr, "conflicting --host and --default-host values")
 		os.Exit(2)
 	}
-	if *host != "" {
-		resolvedHost = *host
-	} else if *defaultHost != "" {
-		resolvedHost = *defaultHost
+	if strings.TrimSpace(flags.Host) != "" {
+		resolvedHost = strings.TrimSpace(flags.Host)
 	}
 	if resolvedHost != "" {
 		cfg.DefaultHost = resolvedHost
 		updated = true
 	}
-	if *agent != "" {
-		cfg.AgentProvider = *agent
+	if strings.TrimSpace(flags.Agent) != "" {
+		cfg.AgentProvider = strings.TrimSpace(flags.Agent)
 		updated = true
 	}
-	if len(setHosts) > 0 {
+	if len(flags.SetHosts) > 0 {
 		if cfg.Hosts == nil {
 			cfg.Hosts = map[string]string{}
 		}
-		for _, entry := range setHosts {
+		for _, entry := range flags.SetHosts {
 			parts := strings.SplitN(entry, "=", 2)
 			if len(parts) != 2 {
 				fmt.Fprintf(os.Stderr, "invalid host mapping %q (expected alias=host)\n", entry)
@@ -310,23 +244,16 @@ func showConfig(cfg config.Config, path string) {
 }
 
 func handleBootstrap(args []string) {
-	fs := flag.NewFlagSet("vibehost bootstrap", flag.ContinueOnError)
-	fs.SetOutput(os.Stderr)
-	localBootstrap := fs.Bool("local", false, "install server from local build instead of GitHub release")
-	localPath := fs.String("local-path", "", "install server from a local binary at this path")
-	localImage := fs.Bool("local-image", false, "build and load the container image from the local Docker daemon")
-	if err := fs.Parse(args); err != nil {
+	result, err := yargs.ParseAndHandleHelp[struct{}, bootstrapFlags, bootstrapArgs](args, helpConfig)
+	if errors.Is(err, yargs.ErrShown) {
+		return
+	}
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err.Error())
 		os.Exit(2)
 	}
-	if fs.NArg() > 1 {
-		fmt.Fprintln(os.Stderr, "Usage: vibehost bootstrap [<host>]")
-		os.Exit(2)
-	}
-
-	hostArg := ""
-	if fs.NArg() == 1 {
-		hostArg = fs.Arg(0)
-	}
+	flags := result.SubCommandFlags
+	hostArg := strings.TrimSpace(result.Args.Host)
 
 	cfg, path, err := config.Load()
 	if err != nil {
@@ -349,38 +276,53 @@ func handleBootstrap(args []string) {
 	if !tty {
 		fmt.Fprintln(os.Stderr, "bootstrap may require sudo; run from a terminal if you are prompted for a password")
 	}
+	ui := tui.NewProgress(os.Stdout, tty, "bootstrap", resolved.Host)
+	ui.Start()
+	defer ui.Stop()
 
 	env := []string{}
-	for _, key := range []string{"VIBEHOST_IMAGE", "VIBEHOST_SERVER_VERSION", "VIBEHOST_SERVER_REPO"} {
+	for _, key := range []string{"VIBERUN_IMAGE", "VIBERUN_SERVER_VERSION", "VIBERUN_SERVER_REPO"} {
 		if value := strings.TrimSpace(os.Getenv(key)); value != "" {
 			env = append(env, key+"="+value)
 		}
 	}
-	if strings.TrimSpace(*localPath) != "" {
-		*localBootstrap = true
+	localBootstrap := flags.Local
+	localPath := strings.TrimSpace(flags.LocalPath)
+	localImage := flags.LocalImage
+	if strings.TrimSpace(localPath) != "" {
+		localBootstrap = true
 	}
 	if isDevRun() {
-		if !*localBootstrap && strings.TrimSpace(*localPath) == "" {
-			*localBootstrap = true
+		if !localBootstrap && strings.TrimSpace(localPath) == "" {
+			localBootstrap = true
 		}
-		if !*localImage {
-			*localImage = true
+		if !localImage {
+			localImage = true
 		}
 	}
-	if *localBootstrap {
-		remotePath, err := stageLocalServerBinary(resolved.Host, *localPath)
+	if localBootstrap {
+		ui.Step("Stage server binary")
+		remotePath, err := stageLocalServerBinary(resolved.Host, localPath)
 		if err != nil {
+			ui.Fail(err.Error())
 			fmt.Fprintf(os.Stderr, "failed to stage local server binary: %v\n", err)
 			os.Exit(1)
 		}
-		env = append(env, "VIBEHOST_SERVER_LOCAL_PATH="+remotePath)
+		ui.Done("")
+		env = append(env, "VIBERUN_SERVER_LOCAL_PATH="+remotePath)
 	}
-	if *localImage {
+	if localImage {
+		ui.Step("Build container image")
+		ui.Suspend()
 		if err := stageLocalImage(resolved.Host); err != nil {
+			ui.Resume()
+			ui.Fail(err.Error())
 			fmt.Fprintf(os.Stderr, "failed to stage local image: %v\n", err)
 			os.Exit(1)
 		}
-		env = append(env, "VIBEHOST_SKIP_IMAGE_PULL=1")
+		ui.Resume()
+		ui.Done("")
+		env = append(env, "VIBERUN_SKIP_IMAGE_PULL=1")
 	}
 
 	command := bootstrapCommand(bootstrapScript())
@@ -397,23 +339,197 @@ func handleBootstrap(args []string) {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
+	ui.Step("Run bootstrap")
+	ui.Suspend()
 	if err := cmd.Run(); err != nil {
+		ui.Resume()
+		ui.Fail(err.Error())
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			os.Exit(exitErr.ExitCode())
 		}
 		fmt.Fprintf(os.Stderr, "failed to start ssh: %v\n", err)
 		os.Exit(1)
 	}
+	ui.Resume()
+	ui.Done("")
 	if strings.TrimSpace(cfg.DefaultHost) == "" && strings.TrimSpace(hostArg) != "" {
 		cfg.DefaultHost = hostArg
 		if err := config.Save(path, cfg); err != nil {
-			fmt.Fprintf(os.Stderr, "bootstrap complete, but failed to save default host: %v\n", err)
-			fmt.Fprintf(os.Stderr, "run `vibehost config --host %s` to set it manually\n", hostArg)
+			fmt.Fprintf(os.Stderr, "Bootstrap complete, but failed to save default host: %v\n", err)
+			fmt.Fprintf(os.Stderr, "Run `viberun config --host %s` to set it manually.\n", hostArg)
 		} else {
 			fmt.Fprintf(os.Stdout, "default host set to %s\n", hostArg)
 		}
 	}
-	fmt.Fprintln(os.Stdout, "bootstrap complete")
+	fmt.Fprintln(os.Stdout, "Bootstrap complete.")
+}
+
+func configFlagsEmpty(flags configFlags) bool {
+	return strings.TrimSpace(flags.Host) == "" &&
+		strings.TrimSpace(flags.DefaultHost) == "" &&
+		strings.TrimSpace(flags.Agent) == "" &&
+		len(flags.SetHosts) == 0
+}
+
+func runApp(flags runFlags, args runArgs) error {
+	targetArg := strings.TrimSpace(args.Target)
+	if targetArg == "" {
+		exitUsage("Usage: viberun [--agent provider] <app> | viberun [--agent provider] <app>@<host> | viberun [--agent provider] <app> snapshot | viberun [--agent provider] <app> snapshots | viberun [--agent provider] <app> restore <snapshot> | viberun <app> shell | viberun <app> --delete [-y] | viberun bootstrap [<host>] | viberun config [options]")
+	}
+
+	actionArgs := []string{}
+	action := strings.TrimSpace(args.Action)
+	value := strings.TrimSpace(args.Value)
+	if action != "" {
+		switch action {
+		case "snapshot":
+			if value != "" {
+				exitUsage("Usage: viberun [--agent provider] <app> snapshot | viberun [--agent provider] <app> snapshots | viberun <app> shell")
+			}
+			actionArgs = []string{"snapshot"}
+		case "snapshots":
+			if value != "" {
+				exitUsage("Usage: viberun [--agent provider] <app> snapshot | viberun [--agent provider] <app> snapshots | viberun <app> shell")
+			}
+			actionArgs = []string{"snapshots"}
+		case "shell":
+			if value != "" {
+				exitUsage("Usage: viberun [--agent provider] <app> snapshot | viberun [--agent provider] <app> snapshots | viberun <app> shell")
+			}
+			actionArgs = []string{"shell"}
+		case "restore":
+			if value == "" {
+				exitUsage("Usage: viberun [--agent provider] <app> restore <snapshot>")
+			}
+			actionArgs = []string{"restore", value}
+		default:
+			exitUsage("Usage: viberun [--agent provider] <app> snapshot | viberun [--agent provider] <app> snapshots | viberun [--agent provider] <app> restore <snapshot> | viberun <app> shell")
+		}
+	}
+	if flags.Delete {
+		if len(actionArgs) != 0 {
+			exitUsage("Usage: viberun [--delete] <app> | viberun [--agent provider] <app> snapshot | viberun [--agent provider] <app> snapshots | viberun [--agent provider] <app> restore <snapshot> | viberun <app> shell")
+		}
+		if !flags.Yes {
+			if !promptDelete(targetArg) {
+				fmt.Fprintln(os.Stdout, "delete cancelled")
+				return nil
+			}
+		}
+		actionArgs = []string{"delete"}
+	}
+
+	cfg, _, err := config.Load()
+	if err != nil {
+		return fmt.Errorf("failed to load config: %w", err)
+	}
+
+	resolved, err := target.Resolve(targetArg, cfg)
+	if err != nil {
+		exitUsage(fmt.Sprintf("invalid target: %v", err))
+	}
+
+	if _, err := exec.LookPath("ssh"); err != nil {
+		return fmt.Errorf("ssh is required but was not found in PATH")
+	}
+
+	agentProvider := cfg.AgentProvider
+	if strings.TrimSpace(agentProvider) == "" {
+		agentProvider = "codex"
+	}
+	if strings.TrimSpace(flags.Agent) != "" {
+		agentProvider = strings.TrimSpace(flags.Agent)
+	}
+	interactive := len(actionArgs) == 0 || (len(actionArgs) == 1 && actionArgs[0] == "shell")
+	tty := interactive && term.IsTerminal(int(os.Stdin.Fd())) && term.IsTerminal(int(os.Stdout.Fd()))
+	if interactive && !tty {
+		return fmt.Errorf("interactive sessions require a TTY; run from a terminal or use snapshot/restore commands")
+	}
+	extraEnv := map[string]string{}
+	if interactive && tty {
+		exists, err := remoteContainerExists(resolved, agentProvider)
+		if err != nil {
+			return err
+		}
+		if !exists {
+			if !promptCreateLocal(resolved.App) {
+				fmt.Fprintln(os.Stderr, "aborted")
+				os.Exit(1)
+			}
+			extraEnv["VIBERUN_AUTO_CREATE"] = "1"
+			localAuth, details, err := discoverLocalAuth(agentProvider)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "auth discovery failed: %v\n", err)
+			} else if localAuth != nil && promptCopyAuth(resolved.App, agentProvider, details) {
+				bundle, err := stageAuthBundle(resolved.Host, localAuth)
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "failed to stage auth: %v\n", err)
+				} else if encoded, err := encodeAuthBundle(bundle); err != nil {
+					fmt.Fprintf(os.Stderr, "failed to encode auth: %v\n", err)
+				} else if encoded != "" {
+					extraEnv["VIBERUN_AUTH_BUNDLE"] = encoded
+				}
+			}
+		}
+	}
+	var openServer *http.Server
+	var remoteSocket *sshcmd.RemoteSocketForward
+	if interactive {
+		server, port, err := startOpenListener()
+		if err != nil {
+			return fmt.Errorf("failed to start xdg-open listener: %w", err)
+		}
+		openServer = server
+		socketPath := newXdgOpenSocketPath()
+		extraEnv["VIBERUN_XDG_OPEN_SOCKET"] = socketPath
+		remoteSocket = &sshcmd.RemoteSocketForward{
+			RemotePath: socketPath,
+			LocalHost:  "localhost",
+			LocalPort:  port,
+		}
+	}
+	remoteArgs := sshcmd.RemoteArgs(resolved.App, agentProvider, actionArgs, extraEnv)
+	var forward *sshcmd.LocalForward
+	if interactive && !isLocalHost(resolved.Host) {
+		hostPort, err := resolveHostPort(resolved, agentProvider)
+		if err != nil {
+			return err
+		}
+		if err := ensureLocalPortAvailable(hostPort); err != nil {
+			return err
+		}
+		forward = &sshcmd.LocalForward{
+			LocalPort:  hostPort,
+			RemoteHost: "localhost",
+			RemotePort: hostPort,
+		}
+	}
+
+	sshArgs := sshcmd.BuildArgsWithForwards(resolved.Host, remoteArgs, tty, forward, remoteSocket)
+	cmd := exec.Command("ssh", sshArgs...)
+	cmd.Env = normalizedSshEnv()
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		if openServer != nil {
+			_ = openServer.Close()
+		}
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			os.Exit(exitErr.ExitCode())
+		}
+		return fmt.Errorf("failed to start ssh: %w", err)
+	}
+	if openServer != nil {
+		_ = openServer.Close()
+	}
+	return nil
+}
+
+func exitUsage(message string) {
+	fmt.Fprintln(os.Stderr, message)
+	os.Exit(2)
 }
 
 func bootstrapScript() string {
@@ -464,7 +580,7 @@ if need_cmd systemctl; then
 fi
 
 pull_image() {
-  if [ -n "${VIBEHOST_SKIP_IMAGE_PULL:-}" ]; then
+  if [ -n "${VIBERUN_SKIP_IMAGE_PULL:-}" ]; then
     return 0
   fi
   image="$1"
@@ -475,7 +591,7 @@ pull_image() {
     echo "warning: failed to pull image $image" >&2
     return 0
   fi
-  $SUDO docker tag "$image" "vibehost:latest" || true
+  $SUDO docker tag "$image" "viberun:latest" || true
 }
 
 if [ "$(id -u)" -ne 0 ]; then
@@ -488,11 +604,11 @@ if [ "$(id -u)" -ne 0 ]; then
   fi
 fi
 
-VIBEHOST_SERVER_REPO="${VIBEHOST_SERVER_REPO:-shayne/vibehost}"
-VIBEHOST_SERVER_VERSION="${VIBEHOST_SERVER_VERSION:-latest}"
-VIBEHOST_SERVER_INSTALL_DIR="${VIBEHOST_SERVER_INSTALL_DIR:-/usr/local/bin}"
-VIBEHOST_SERVER_BIN="${VIBEHOST_SERVER_BIN:-vibehost-server}"
-VIBEHOST_IMAGE="${VIBEHOST_IMAGE:-}"
+VIBERUN_SERVER_REPO="${VIBERUN_SERVER_REPO:-shayne/viberun}"
+VIBERUN_SERVER_VERSION="${VIBERUN_SERVER_VERSION:-latest}"
+VIBERUN_SERVER_INSTALL_DIR="${VIBERUN_SERVER_INSTALL_DIR:-/usr/local/bin}"
+VIBERUN_SERVER_BIN="${VIBERUN_SERVER_BIN:-viberun-server}"
+VIBERUN_IMAGE="${VIBERUN_IMAGE:-}"
 
 os="$(uname -s | tr '[:upper:]' '[:lower:]')"
 arch_raw="$(uname -m)"
@@ -514,20 +630,20 @@ if [ "$os" != "linux" ]; then
   exit 1
 fi
 
-if [ -z "$VIBEHOST_IMAGE" ]; then
-  if [ "$VIBEHOST_SERVER_VERSION" = "latest" ]; then
-    VIBEHOST_IMAGE="ghcr.io/${VIBEHOST_SERVER_REPO}/vibehost:latest"
+if [ -z "$VIBERUN_IMAGE" ]; then
+  if [ "$VIBERUN_SERVER_VERSION" = "latest" ]; then
+    VIBERUN_IMAGE="ghcr.io/${VIBERUN_SERVER_REPO}/viberun:latest"
   else
-    VIBEHOST_IMAGE="ghcr.io/${VIBEHOST_SERVER_REPO}/vibehost:${VIBEHOST_SERVER_VERSION}"
+    VIBERUN_IMAGE="ghcr.io/${VIBERUN_SERVER_REPO}/viberun:${VIBERUN_SERVER_VERSION}"
   fi
 fi
 
 if need_cmd docker; then
-  pull_image "$VIBEHOST_IMAGE"
+  pull_image "$VIBERUN_IMAGE"
 fi
 
-asset="vibehost-server-${os}-${arch}"
-local_path="${VIBEHOST_SERVER_LOCAL_PATH:-}"
+asset="viberun-server-${os}-${arch}"
+local_path="${VIBERUN_SERVER_LOCAL_PATH:-}"
 tmp_file=""
 if [ -n "$local_path" ]; then
   if [ ! -f "$local_path" ]; then
@@ -536,10 +652,10 @@ if [ -n "$local_path" ]; then
   fi
   tmp_file="$local_path"
 else
-  if [ "$VIBEHOST_SERVER_VERSION" = "latest" ]; then
-    download_url="https://github.com/${VIBEHOST_SERVER_REPO}/releases/latest/download/${asset}"
+  if [ "$VIBERUN_SERVER_VERSION" = "latest" ]; then
+    download_url="https://github.com/${VIBERUN_SERVER_REPO}/releases/latest/download/${asset}"
   else
-    version="$VIBEHOST_SERVER_VERSION"
+    version="$VIBERUN_SERVER_VERSION"
     case "$version" in
       v*)
         ;;
@@ -547,7 +663,7 @@ else
         version="v$version"
         ;;
     esac
-    download_url="https://github.com/${VIBEHOST_SERVER_REPO}/releases/download/${version}/${asset}"
+    download_url="https://github.com/${VIBERUN_SERVER_REPO}/releases/download/${version}/${asset}"
   fi
   tmp_file="$(mktemp)"
   if need_cmd curl; then
@@ -559,7 +675,7 @@ fi
 
 trap 'rm -f "$tmp_file"' EXIT
 
-$SUDO install -m 0755 "$tmp_file" "$VIBEHOST_SERVER_INSTALL_DIR/$VIBEHOST_SERVER_BIN"
+$SUDO install -m 0755 "$tmp_file" "$VIBERUN_SERVER_INSTALL_DIR/$VIBERUN_SERVER_BIN"
 `
 }
 
@@ -651,7 +767,7 @@ func isLocalHost(host string) bool {
 }
 
 func newXdgOpenSocketPath() string {
-	const prefix = "/tmp/vibehost-open-"
+	const prefix = "/tmp/viberun-open-"
 	const suffix = ".sock"
 	buf := make([]byte, 8)
 	if _, err := rand.Read(buf); err == nil {
@@ -779,7 +895,7 @@ func stageLocalImage(host string) error {
 	if err != nil {
 		return err
 	}
-	tag := "vibehost:dev"
+	tag := "viberun:dev"
 	buildCmd := exec.Command("docker", "build", "--platform", "linux/"+arch, "-t", tag, ".")
 	buildCmd.Stdout = os.Stdout
 	buildCmd.Stderr = os.Stderr
@@ -811,7 +927,7 @@ func stageLocalImage(host string) error {
 	if err := loadCmd.Wait(); err != nil {
 		return err
 	}
-	tagArgs := sshcmd.BuildArgs(host, []string{"docker", "tag", tag, "vibehost:latest"}, false)
+	tagArgs := sshcmd.BuildArgs(host, []string{"docker", "tag", tag, "viberun:latest"}, false)
 	tagCmd := exec.Command("ssh", tagArgs...)
 	tagCmd.Env = normalizedSshEnv()
 	tagCmd.Stdout = os.Stdout
@@ -829,13 +945,13 @@ func stageLocalServerBinary(host string, localPath string) (string, error) {
 		if osName != "linux" {
 			return "", fmt.Errorf("unsupported remote OS: %s", osName)
 		}
-		tmpFile, err := os.CreateTemp("", "vibehost-server-")
+		tmpFile, err := os.CreateTemp("", "viberun-server-")
 		if err != nil {
 			return "", err
 		}
 		tmpPath := tmpFile.Name()
 		_ = tmpFile.Close()
-		buildCmd := exec.Command("go", "build", "-o", tmpPath, "./cmd/vibehost-server")
+		buildCmd := exec.Command("go", "build", "-o", tmpPath, "./cmd/viberun-server")
 		buildCmd.Env = append(os.Environ(),
 			"CGO_ENABLED=0",
 			"GOOS=linux",
@@ -851,7 +967,7 @@ func stageLocalServerBinary(host string, localPath string) (string, error) {
 	if _, err := os.Stat(path); err != nil {
 		return "", fmt.Errorf("local binary not found: %w", err)
 	}
-	remotePath := fmt.Sprintf("/tmp/vibehost-server-%d", time.Now().UnixNano())
+	remotePath := fmt.Sprintf("/tmp/viberun-server-%d", time.Now().UnixNano())
 	if err := uploadFileOverSSH(host, path, remotePath); err != nil {
 		return "", err
 	}
@@ -915,35 +1031,6 @@ func uploadFileOverSSH(host string, localPath string, remotePath string) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
-}
-
-func parseMainArgs(args []string) (string, bool, bool, []string, error) {
-	var remaining []string
-	agentOverride := ""
-	deleteApp := false
-	deleteYes := false
-	for i := 0; i < len(args); i++ {
-		arg := strings.TrimSpace(args[i])
-		switch {
-		case arg == "":
-			continue
-		case arg == "--delete":
-			deleteApp = true
-		case arg == "-y" || arg == "--yes":
-			deleteYes = true
-		case arg == "--agent":
-			if i+1 >= len(args) {
-				return "", false, false, nil, fmt.Errorf("Usage: vibehost [--agent provider] <app> | vibehost [--agent provider] <app>@<host> | vibehost [--agent provider] <app> snapshot | vibehost [--agent provider] <app> snapshots | vibehost [--agent provider] <app> restore <snapshot> | vibehost <app> shell | vibehost <app> --delete [-y] | vibehost bootstrap [<host>] | vibehost config [options]")
-			}
-			agentOverride = strings.TrimSpace(args[i+1])
-			i++
-		case strings.HasPrefix(arg, "--agent="):
-			agentOverride = strings.TrimSpace(strings.TrimPrefix(arg, "--agent="))
-		default:
-			remaining = append(remaining, args[i])
-		}
-	}
-	return agentOverride, deleteApp, deleteYes, remaining, nil
 }
 
 func normalizedSshEnv() []string {

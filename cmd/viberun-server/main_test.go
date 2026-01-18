@@ -10,7 +10,7 @@ func TestTmuxSessionArgsUsesDefaults(t *testing.T) {
 	if args[0] != "tmux" || args[1] != "new-session" {
 		t.Fatalf("unexpected tmux prefix: %v", args[:2])
 	}
-	if args[2] != "-A" || args[3] != "-s" || args[4] != "vibehost-session" {
+	if args[2] != "-A" || args[3] != "-s" || args[4] != "viberun-session" {
 		t.Fatalf("unexpected session args: %v", args[:5])
 	}
 	if args[5] != "/bin/bash" {
@@ -20,11 +20,11 @@ func TestTmuxSessionArgsUsesDefaults(t *testing.T) {
 
 func TestTmuxSessionArgsKeepsCommand(t *testing.T) {
 	command := []string{"codex", "--help"}
-	args := tmuxSessionArgs("vibehost-agent", command)
+	args := tmuxSessionArgs("viberun-agent", command)
 	if args[0] != "tmux" || args[1] != "new-session" {
 		t.Fatalf("unexpected tmux prefix: %v", args[:2])
 	}
-	if args[4] != "vibehost-agent" {
+	if args[4] != "viberun-agent" {
 		t.Fatalf("expected session name, got %q", args[4])
 	}
 	if args[5] != "codex" || args[6] != "--help" {
@@ -33,11 +33,11 @@ func TestTmuxSessionArgsKeepsCommand(t *testing.T) {
 }
 
 func TestDockerExecArgsIncludesEnv(t *testing.T) {
-	args := dockerExecArgs("vibehost-test", []string{"codex"}, true, map[string]string{
+	args := dockerExecArgs("viberun-test", []string{"codex"}, true, map[string]string{
 		"COLORTERM": "truecolor",
 		"TERM":      "xterm-256color",
 	})
-	expected := []string{"exec", "-i", "-t", "-e", "COLORTERM=truecolor", "-e", "TERM=xterm-256color", "vibehost-test", "codex"}
+	expected := []string{"exec", "-i", "-t", "-e", "COLORTERM=truecolor", "-e", "TERM=xterm-256color", "viberun-test", "codex"}
 	if len(args) != len(expected) {
 		t.Fatalf("unexpected args length: got %v want %v", args, expected)
 	}
@@ -49,10 +49,10 @@ func TestDockerExecArgsIncludesEnv(t *testing.T) {
 }
 
 func TestDockerExecArgsWithoutTTY(t *testing.T) {
-	args := dockerExecArgs("vibehost-test", []string{"bash"}, false, map[string]string{
+	args := dockerExecArgs("viberun-test", []string{"bash"}, false, map[string]string{
 		"TERM": "xterm-256color",
 	})
-	expected := []string{"exec", "-i", "-e", "TERM=xterm-256color", "vibehost-test", "bash"}
+	expected := []string{"exec", "-i", "-e", "TERM=xterm-256color", "viberun-test", "bash"}
 	if len(args) != len(expected) {
 		t.Fatalf("unexpected args length: got %v want %v", args, expected)
 	}

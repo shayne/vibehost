@@ -1,5 +1,5 @@
 add_newline = false
-format = "$custom.vibehost$directory$git_branch$git_status$character"
+format = "$custom.viberun$directory$git_branch$git_status$character"
 
 [directory]
 truncation_length = 3
@@ -18,7 +18,7 @@ style = "yellow"
 success_symbol = "> "
 error_symbol = "> "
 
-[custom.vibehost]
-when = "test -n \"$VIBEHOST_APP\""
-command = "printf \"vh:%s \" \"$VIBEHOST_APP\""
+[custom.viberun]
+when = "test -n \"$VIBERUN_APP\""
+command = "printf \"vr:%s \" \"$VIBERUN_APP\""
 style = "bold cyan"

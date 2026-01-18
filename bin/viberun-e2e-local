@@ -2,9 +2,9 @@
 set -euo pipefail
 
 root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-app_name="${VIBEHOST_E2E_APP:-myapp}"
-agent="${VIBEHOST_E2E_AGENT:-codex}"
-container="vibehost-$app_name"
+app_name="${VIBERUN_E2E_APP:-myapp}"
+agent="${VIBERUN_E2E_AGENT:-codex}"
+container="viberun-$app_name"
 
 require_cmd() {
   if ! command -v "$1" >/dev/null 2>&1; then
@@ -27,8 +27,8 @@ fi
 
 mkdir -p "$root_dir/bin"
 
-go build -o "$root_dir/bin/vibehost" "$root_dir/cmd/vibehost"
-go build -o "$root_dir/bin/vibehost-server" "$root_dir/cmd/vibehost-server"
+go build -o "$root_dir/bin/viberun" "$root_dir/cmd/viberun"
+go build -o "$root_dir/bin/viberun-server" "$root_dir/cmd/viberun-server"
 
 install_bin() {
   local src="$1"
@@ -44,26 +44,26 @@ install_bin() {
   return 1
 }
 
-if ! install_bin "$root_dir/bin/vibehost" /usr/local/bin; then
-  echo "failed to install vibehost into /usr/local/bin; rerun as root or install manually" >&2
+if ! install_bin "$root_dir/bin/viberun" /usr/local/bin; then
+  echo "failed to install viberun into /usr/local/bin; rerun as root or install manually" >&2
   exit 1
 fi
 
-if ! install_bin "$root_dir/bin/vibehost-server" /usr/local/bin; then
-  echo "failed to install vibehost-server into /usr/local/bin; rerun as root or install manually" >&2
+if ! install_bin "$root_dir/bin/viberun-server" /usr/local/bin; then
+  echo "failed to install viberun-server into /usr/local/bin; rerun as root or install manually" >&2
   exit 1
 fi
 
-docker build -t vibehost:latest "$root_dir" >/dev/null
+docker build -t viberun:latest "$root_dir" >/dev/null
 
-vibehost config --host localhost --agent "$agent" >/dev/null
+viberun config --host localhost --agent "$agent" >/dev/null
 
 if docker inspect "$container" >/dev/null 2>&1; then
   docker rm -f "$container" >/dev/null
 fi
 
 create_output=""
-if ! create_output="$(printf '\nexit\n' | timeout 45s vibehost "$app_name" shell 2>&1)"; then
+if ! create_output="$(printf '\nexit\n' | timeout 45s viberun "$app_name" shell 2>&1)"; then
   echo "initial app creation failed for $app_name" >&2
   echo "$create_output" >&2
   exit 1
@@ -91,12 +91,12 @@ wait_for_container() {
 wait_for_container
 
 agent_output=""
-if ! agent_output="$(VIBEHOST_AGENT_CHECK="vibehost-agent-check" script -q -c "vibehost \"$app_name\"" /dev/null 2>&1)"; then
+if ! agent_output="$(VIBERUN_AGENT_CHECK="viberun-agent-check" script -q -c "viberun \"$app_name\"" /dev/null 2>&1)"; then
   echo "agent session check failed for $app_name" >&2
   echo "$agent_output" >&2
   exit 1
 fi
-if ! echo "$agent_output" | grep -Fq "vibehost-agent-check ok"; then
+if ! echo "$agent_output" | grep -Fq "viberun-agent-check ok"; then
   echo "expected agent session check output for $app_name" >&2
   echo "$agent_output" >&2
   exit 1
@@ -105,7 +105,7 @@ fi
 docker port "$container" 8080/tcp >/dev/null
 
 start_health_server() {
-  docker exec "$container" sh -c "nohup node -e 'const http=require(\"http\");http.createServer((req,res)=>{if(req.url===\"/health\"){res.end(\"ok\");return;}res.end(\"hello\");}).listen(8080,\"0.0.0.0\");' >/tmp/vibehost-health.log 2>&1 &"
+  docker exec "$container" sh -c "nohup node -e 'const http=require(\"http\");http.createServer((req,res)=>{if(req.url===\"/health\"){res.end(\"ok\");return;}res.end(\"hello\");}).listen(8080,\"0.0.0.0\");' >/tmp/viberun-health.log 2>&1 &"
 }
 
 start_health_server
@@ -122,8 +122,8 @@ if [ "$health_body" != "ok" ]; then
   exit 1
 fi
 
-if ! docker exec "$container" sh -c 'ps -p 1 -o comm= | tr -d " " | grep -Eq "(systemd|init)"'; then
-  echo "expected PID 1 to be systemd/init in $container" >&2
+if ! docker exec "$container" sh -c 'ps -p 1 -o comm= | tr -d " " | grep -Eq "s6-svscan"'; then
+  echo "expected PID 1 to be s6-svscan in $container" >&2
   exit 1
 fi
 
@@ -134,22 +134,27 @@ for tool in codex claude gemini; do
   fi
 done
 
-docker exec "$container" sh -c "printf 'before' > /tmp/vibehost-snap-test"
+if ! docker exec "$container" sh -c "command -v vrctl >/dev/null 2>&1"; then
+  echo "expected vrctl to be installed in $container" >&2
+  exit 1
+fi
 
-vibehost "$app_name" snapshot >/dev/null
+docker exec "$container" sh -c "printf 'before' > /tmp/viberun-snap-test"
 
-docker exec "$container" sh -c "printf 'after' > /tmp/vibehost-snap-test"
+viberun "$app_name" snapshot >/dev/null
 
-vibehost "$app_name" restore latest >/dev/null
+docker exec "$container" sh -c "printf 'after' > /tmp/viberun-snap-test"
+
+viberun "$app_name" restore latest >/dev/null
 
 wait_for_container
 
-restored_contents="$(docker exec "$container" sh -c "cat /tmp/vibehost-snap-test" 2>/dev/null || true)"
+restored_contents="$(docker exec "$container" sh -c "cat /tmp/viberun-snap-test" 2>/dev/null || true)"
 if [ "$restored_contents" != "before" ]; then
   echo "expected snapshot restore to revert test file in $container" >&2
   exit 1
 fi
 
-printf '\nexit\n' | timeout 45s vibehost "$app_name" shell >/dev/null
+printf '\nexit\n' | timeout 45s viberun "$app_name" shell >/dev/null
 
 echo "E2E smoke test completed for $app_name"

@@ -1,66 +1,68 @@
 2026-01-17: Implemented initial Go client target parsing and host/alias resolution with tests; added base module and config loader. Ran `mise exec -- go test ./...`.
-2026-01-17: Wired client CLI to invoke `ssh` with TTY passthrough for `vibehost <app>` and added ssh command builder. Ran `mise exec -- go test ./...` and `mise exec -- go vet ./...`.
-2026-01-17: Added initial `vibehost-server` CLI to create/start Docker containers, persist port allocations, and exec an interactive shell; added server state tests. Ran `mise exec -- go test ./...` and `mise exec -- go vet ./...`.
-2026-01-17: Added `vibehost config` command to view/update config (default host, agent provider, host aliases) plus config save/load test. Ran `mise exec -- go test ./...` and `mise exec -- go vet ./...`.
+2026-01-17: Wired client CLI to invoke `ssh` with TTY passthrough for `viberun <app>` and added ssh command builder. Ran `mise exec -- go test ./...` and `mise exec -- go vet ./...`.
+2026-01-17: Added initial `viberun-server` CLI to create/start Docker containers, persist port allocations, and exec an interactive shell; added server state tests. Ran `mise exec -- go test ./...` and `mise exec -- go vet ./...`.
+2026-01-17: Added `viberun config` command to view/update config (default host, agent provider, host aliases) plus config save/load test. Ran `mise exec -- go test ./...` and `mise exec -- go vet ./...`.
 2026-01-17: Passed agent provider from client config to server; server now runs provider command inside container instead of default shell. Ran `mise exec -- go test ./...` and `mise exec -- go vet ./...`.
 2026-01-17: Added snapshot/restore support in client/server CLIs, using Docker commit images with `latest` restore resolution. Ran `mise exec -- go test ./...` and `mise exec -- go vet ./...`.
 2026-01-17: Added base Ubuntu systemd Dockerfile with Node.js and agent CLI wrappers that invoke `npx` for Codex/Claude Code/Gemini. Ran `mise exec -- go test ./...` and `mise exec -- go vet ./...`.
 2026-01-17: Updated server Docker run/restore to boot systemd with cgroup/tmpfs mounts for background service support. Ran `mise exec -- go test ./...` and `mise exec -- go vet ./...`.
 2026-01-17: Added built-in container skills for web services, cron jobs, and background services; wired them into the image. Ran `mise exec -- go test ./...` and `mise exec -- go vet ./...`.
-2026-01-17: Added snapshot listing command (client/server) and documented in PRD; ?   	vibehost/cmd/vibehost	[no test files]
-?   	vibehost/cmd/vibehost-server	[no test files]
-ok  	vibehost/internal/config	(cached)
-ok  	vibehost/internal/server	(cached)
-?   	vibehost/internal/sshcmd	[no test files]
-ok  	vibehost/internal/target	(cached) and .
+2026-01-17: Added snapshot listing command (client/server) and documented in PRD; ?   	viberun/cmd/viberun	[no test files]
+?   	viberun/cmd/viberun-server	[no test files]
+ok  	viberun/internal/config	(cached)
+ok  	viberun/internal/server	(cached)
+?   	viberun/internal/sshcmd	[no test files]
+ok  	viberun/internal/target	(cached) and .
 2026-01-17: Baked a demo systemd unit into the container image to validate background service enablement. Ran `mise exec -- go test ./...` and `mise exec -- go vet ./...`.
 2026-01-17: Added --agent override to client CLI for per-launch provider selection; updated usage docs. Ran `mise exec -- go test ./...` and `mise exec -- go vet ./...`.
-2026-01-17: Added \ command to open a non-agent shell session (client/server). Ran \?   	vibehost/cmd/vibehost	[no test files]
-?   	vibehost/cmd/vibehost-server	[no test files]
-ok  	vibehost/internal/config	(cached)
-ok  	vibehost/internal/server	(cached)
-?   	vibehost/internal/sshcmd	[no test files]
-ok  	vibehost/internal/target	(cached) and \.
-2026-01-17: Added vibehost <app> shell command to open a non-agent shell session (client/server). Ran `mise exec -- go test ./...` and `mise exec -- go vet ./...`.
-2026-01-17: Added in-container snapshot/restore/list commands via new vibehost-container helper, mounted Docker socket and injected container metadata env vars. Ran `mise exec -- go test ./...` and `mise exec -- go vet ./...`.
-2026-01-17: Added a --host alias for vibehost config to match PRD/E2E usage. Ran `mise exec -- go test ./...` and `mise exec -- go vet ./...`.
+2026-01-17: Added \ command to open a non-agent shell session (client/server). Ran \?   	viberun/cmd/viberun	[no test files]
+?   	viberun/cmd/viberun-server	[no test files]
+ok  	viberun/internal/config	(cached)
+ok  	viberun/internal/server	(cached)
+?   	viberun/internal/sshcmd	[no test files]
+ok  	viberun/internal/target	(cached) and \.
+2026-01-17: Added viberun <app> shell command to open a non-agent shell session (client/server). Ran `mise exec -- go test ./...` and `mise exec -- go vet ./...`.
+2026-01-17: Added in-container snapshot/restore/list commands via new viberun-container helper, mounted Docker socket and injected container metadata env vars. Ran `mise exec -- go test ./...` and `mise exec -- go vet ./...`.
+2026-01-17: Added a --host alias for viberun config to match PRD/E2E usage. Ran `mise exec -- go test ./...` and `mise exec -- go vet ./...`.
 2026-01-17: Guarded port mapping when server state is missing for existing containers and added parser coverage for Docker port output. Ran `mise exec -- go test ./...` and `mise exec -- go vet ./...`.
 2026-01-17: Avoided forcing TTY on docker exec when stdin/stdout are non-interactive; added exec arg tests. Ran `mise exec -- go test ./...` and `mise exec -- go vet ./...`.
-2026-01-17: Added bin/vibehost-e2e-local smoke test script to build/install binaries, run non-interactive shell session over SSH, validate port mapping, and exercise snapshot/restore. Ran `mise exec -- go test ./...` and `mise exec -- go vet ./...`.
-2026-01-17: Synced server port state from existing vibehost containers on startup to recover missing state file allocations. Ran `mise exec -- go test ./...` and `mise exec -- go vet ./...`.
+2026-01-17: Added bin/viberun-e2e-local smoke test script to build/install binaries, run non-interactive shell session over SSH, validate port mapping, and exercise snapshot/restore. Ran `mise exec -- go test ./...` and `mise exec -- go vet ./...`.
+2026-01-17: Synced server port state from existing viberun containers on startup to recover missing state file allocations. Ran `mise exec -- go test ./...` and `mise exec -- go vet ./...`.
 2026-01-17: Made SSH TTY allocation conditional for interactive sessions and added sshcmd tests. Ran `mise exec -- go test ./...` and `mise exec -- go vet ./...`.
 2026-01-17: Added tests for server app creation prompt to ensure default-yes behavior on empty/EOF input. Ran `mise exec -- go test ./...` and `mise exec -- go vet ./...`.
 2026-01-17: Required a TTY for interactive client sessions so non-terminal runs fail fast with a clear error. Ran `mise exec -- go test ./...` and `mise exec -- go vet ./...`.
 2026-01-17: Wrapped agent and shell sessions in tmux inside the container to enable concurrent multiplexed sessions; added tmux install and tests. Ran `mise exec -- go test ./...` and `mise exec -- go vet ./...`.
 2026-01-17: Marked R1-R3 and related acceptance checklist items as complete in PRD (client CLI, server prompt/create, and port mapping). Ran `mise exec -- go test ./...` and `mise exec -- go vet ./...`.
 2026-01-17: Forwarded TERM/COLORTERM into interactive docker exec sessions for reliable TTY/PTY behavior; added docker exec arg tests. Ran `mise exec -- go test ./...` and `mise exec -- go vet ./...`.
-2026-01-17: Extended bin/vibehost-e2e-local to verify systemd PID 1 and agent CLI wrappers in the container. Ran `mise exec -- go test ./...` and `mise exec -- go vet ./...`.
-2026-01-17: Expanded bin/vibehost-e2e-local to verify snapshot/restore by reverting a test file and added readiness wait for restored container. Ran \?   	vibehost/cmd/vibehost	[no test files]
-ok  	vibehost/cmd/vibehost-server	(cached)
-ok  	vibehost/internal/config	(cached)
-ok  	vibehost/internal/server	(cached)
-ok  	vibehost/internal/sshcmd	(cached)
-ok  	vibehost/internal/target	(cached) and \.
-2026-01-17: Extended bin/vibehost-e2e-local to start a simple HTTP server in the container, resolve mapped host port 8080, and verify /health via curl. Ran `mise exec -- go test ./...` and `mise exec -- go vet ./...`.
-2026-01-17: Updated bin/vibehost-e2e-local to enforce a clean container and assert the create prompt appears on first run; marked E2E prompt checklist item complete in PRD. Ran `mise exec -- go test ./...` and `mise exec -- go vet ./...`.
-2026-01-17: Added VIBEHOST_AGENT_CHECK hook to pass agent-check command through ssh/docker exec, updated container wrappers + E2E script to verify agent session output. Ran `mise exec -- go test ./...` and `mise exec -- go vet ./...`.
+2026-01-17: Extended bin/viberun-e2e-local to verify systemd PID 1 and agent CLI wrappers in the container. Ran `mise exec -- go test ./...` and `mise exec -- go vet ./...`.
+2026-01-17: Expanded bin/viberun-e2e-local to verify snapshot/restore by reverting a test file and added readiness wait for restored container. Ran \?   	viberun/cmd/viberun	[no test files]
+ok  	viberun/cmd/viberun-server	(cached)
+ok  	viberun/internal/config	(cached)
+ok  	viberun/internal/server	(cached)
+ok  	viberun/internal/sshcmd	(cached)
+ok  	viberun/internal/target	(cached) and \.
+2026-01-17: Extended bin/viberun-e2e-local to start a simple HTTP server in the container, resolve mapped host port 8080, and verify /health via curl. Ran `mise exec -- go test ./...` and `mise exec -- go vet ./...`.
+2026-01-17: Updated bin/viberun-e2e-local to enforce a clean container and assert the create prompt appears on first run; marked E2E prompt checklist item complete in PRD. Ran `mise exec -- go test ./...` and `mise exec -- go vet ./...`.
+2026-01-17: Added VIBERUN_AGENT_CHECK hook to pass agent-check command through ssh/docker exec, updated container wrappers + E2E script to verify agent session output. Ran `mise exec -- go test ./...` and `mise exec -- go vet ./...`.
 2026-01-17: Added nightly GitHub Actions workflow plus mise build/test/vet tasks for CI parity. Ran `mise exec -- go test ./...` and `mise exec -- go vet ./...`.
 2026-01-17: Added release workflow for tag builds plus a mise task to produce Linux release artifacts. Ran `mise run test` and `mise run vet`.
 2026-01-17: Added GHCR image build/push workflow with matching mise tasks (build:image, release:push-image). Ran `mise run test` and `mise run vet`.
 2026-01-17: Confirmed PRD complete and added sentinel file I_PROMISE_ALL_TASKS_IN_THE_PRD_ARE_DONE_I_AM_NOT_LYING_I_SWEAR; updated PRD progress notes. Ran `mise run test` and `mise run vet`.
-2026-01-17: Added bin/vibehost-integration host-run script with a mise task to validate server/container wiring. Ran `mise run test` and `mise run vet`; `mise run integration` failed because Docker is not available on this host.
+2026-01-17: Added bin/viberun-integration host-run script with a mise task to validate server/container wiring. Ran `mise run test` and `mise run vet`; `mise run integration` failed because Docker is not available on this host.
 2026-01-17: Clarified PRD completion status; integration tests require Docker and must run before creating the sentinel file.
 2026-01-17: Fixed Dockerfile agent wrapper generation, added --cgroupns=host to keep systemd containers running, ran host integration tests, and marked PRD complete (created sentinel file). Ran `mise run integration`, `mise run test`, and `mise run vet`.
-2026-01-17: Added curl | bash client install script (bin/vibehost-install) with env-configurable install dir/binary name and GitHub release downloads. Ran `mise run test` and `mise run vet`.
-2026-01-17: Added `vibehost bootstrap` to validate Ubuntu, install Docker, install `vibehost-server`, and warn about docker group membership for non-root users; added host resolution helper and tests. Ran `mise run test` and `mise run vet`.
+2026-01-17: Added curl | bash client install script (bin/viberun-install) with env-configurable install dir/binary name and GitHub release downloads. Ran `mise run test` and `mise run vet`.
+2026-01-17: Added `viberun bootstrap` to validate Ubuntu, install Docker, install `viberun-server`, and warn about docker group membership for non-root users; added host resolution helper and tests. Ran `mise run test` and `mise run vet`.
 2026-01-17: Implemented client localhost reverse proxy via SSH local port forwarding, added server port lookup action, and detected local port conflicts for interactive sessions. Ran `mise run test` and `mise run vet`.
-2026-01-17: Added VIBEHOST_APP_PORT/VIBEHOST_HOST_PORT env vars to container create/restore paths so apps can read internal/host ports. Ran ?   	vibehost/cmd/vibehost	[no test files]
-ok  	vibehost/cmd/vibehost-server	(cached)
-ok  	vibehost/internal/config	(cached)
-ok  	vibehost/internal/server	(cached)
-ok  	vibehost/internal/sshcmd	(cached)
-ok  	vibehost/internal/target	(cached) and .
+2026-01-17: Added VIBERUN_APP_PORT/VIBERUN_HOST_PORT env vars to container create/restore paths so apps can read internal/host ports. Ran ?   	viberun/cmd/viberun	[no test files]
+ok  	viberun/cmd/viberun-server	(cached)
+ok  	viberun/internal/config	(cached)
+ok  	viberun/internal/server	(cached)
+ok  	viberun/internal/sshcmd	(cached)
+ok  	viberun/internal/target	(cached) and .
 2026-01-17: Implemented xdg-open forwarding with SSH remote socket forwarding, client-side URL validation/opening, server socket mounts, and container xdg-open wrapper. Ran `mise run test` and `mise run vet`.
 2026-01-17: Added README quick start covering install/bootstrap/hello-world flow and marked documentation complete in PRD. Ran `mise run test` and `mise run vet`.
-2026-01-17: Updated module path and repo defaults to github.com/shayne/vibehost across Go imports and install/bootstrap defaults. Ran `mise run test` and `mise run vet`.
+2026-01-17: Updated module path and repo defaults to github.com/shayne/viberun across Go imports and install/bootstrap defaults. Ran `mise run test` and `mise run vet`.
 2026-01-17: Restored the PRD completion sentinel file after confirming no remaining tasks; updated PRD progress notes. Ran `mise run test` and `mise run vet`.
+
+2026-01-18: Replaced systemd with s6, added vrctl service manager, removed docker.sock mounts and privileged container flags, and updated skills/docs to use vrctl.

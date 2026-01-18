@@ -1,38 +1,28 @@
 ---
 name: background-service
-description: Help run a long-lived background process under systemd.
+description: Help run a long-lived background process under vrctl+s6.
 metadata:
-  short-description: Systemd background service
+  short-description: Background service
 ---
 
 # background-service
 
-Purpose: help run a long-lived background process under systemd.
+Purpose: help run a long-lived background process under vrctl+s6.
 
 ## Workflow
 1) Define the command and working directory.
-2) Create a systemd unit.
-3) Enable and start it.
+2) Register the service with `vrctl service add`.
+3) Start it (vrctl starts by default).
 4) Check logs and restart policy.
+5) Mention that vrctl keeps the service running on container restarts.
 
-## systemd unit template
+## vrctl template
 ```
-[Unit]
-Description=Vibehost background service (<name>)
-After=network.target
-
-[Service]
-Type=simple
-WorkingDirectory=/workspace/<app>
-ExecStart=/usr/bin/env bash -lc '<command>'
-Restart=on-failure
-RestartSec=2
-
-[Install]
-WantedBy=multi-user.target
+vrctl service add <name> \
+  --cmd "<command>" \
+  --cwd /workspace/<app>
 ```
 
 ## Common checks
-- `systemctl daemon-reload`
-- `systemctl enable --now <name>.service`
-- `journalctl -u <name>.service -n 200 --no-pager`
+- `vrctl service status <name>`
+- `vrctl service logs <name> -n 200`

@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -15,24 +14,33 @@ import (
 
 	"golang.org/x/term"
 
-	"github.com/shayne/vibehost/internal/server"
+	"github.com/shayne/viberun/internal/server"
+	"github.com/shayne/yargs"
 )
 
-const defaultImage = "vibehost:latest"
+const defaultImage = "viberun:latest"
+
+type serverFlags struct {
+	Agent string `flag:"agent" help:"agent provider to run (codex, claude, gemini)"`
+}
 
 func main() {
-	fs := flag.NewFlagSet("vibehost-server", flag.ContinueOnError)
-	fs.SetOutput(os.Stderr)
-	agentProvider := fs.String("agent", "codex", "agent provider to run (codex, claude, gemini)")
-	if err := fs.Parse(os.Args[1:]); err != nil {
+	args := os.Args[1:]
+	if len(args) == 0 || hasHelpFlag(args) {
+		fmt.Fprintln(os.Stderr, "Usage: viberun-server [--agent provider] <app> [snapshot|snapshots|restore <snapshot>|shell|port|delete|exists]")
+		os.Exit(2)
+	}
+	result, err := yargs.ParseFlags[serverFlags](args)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err.Error())
 		os.Exit(2)
 	}
 
-	if fs.NArg() < 1 || fs.NArg() > 3 {
-		fmt.Fprintln(os.Stderr, "Usage: vibehost-server [--agent provider] <app> [snapshot|snapshots|restore <snapshot>|shell|port|delete|exists]")
+	if len(result.Args) < 1 || len(result.Args) > 3 {
+		fmt.Fprintln(os.Stderr, "Usage: viberun-server [--agent provider] <app> [snapshot|snapshots|restore <snapshot>|shell|port|delete|exists]")
 		os.Exit(2)
 	}
-	args := fs.Args()
+	args = result.Args
 	app := strings.TrimSpace(args[0])
 	if app == "" {
 		fmt.Fprintln(os.Stderr, "app name is required")
@@ -45,15 +53,19 @@ func main() {
 		os.Exit(2)
 	}
 
-	agentArgs, err := agentCommand(*agentProvider)
+	agentProvider := strings.TrimSpace(result.Flags.Agent)
+	if agentProvider == "" {
+		agentProvider = "codex"
+	}
+	agentArgs, err := agentCommand(agentProvider)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "invalid agent provider: %v\n", err)
 		os.Exit(2)
 	}
-	sessionName := "vibehost-agent"
+	sessionName := "viberun-agent"
 	if action == "shell" {
 		agentArgs = []string{"/bin/bash"}
-		sessionName = "vibehost-shell"
+		sessionName = "viberun-shell"
 	}
 	agentArgs = tmuxSessionArgs(sessionName, agentArgs)
 
@@ -75,7 +87,7 @@ func main() {
 		stateDirty = true
 	}
 
-	containerName := fmt.Sprintf("vibehost-%s", app)
+	containerName := fmt.Sprintf("viberun-%s", app)
 	exists, err := containerExists(containerName)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to inspect container: %v\n", err)
@@ -264,7 +276,17 @@ func parseAction(args []string) (string, []string, error) {
 	if len(args) == 2 && args[0] == "restore" && strings.TrimSpace(args[1]) != "" {
 		return "restore", []string{strings.TrimSpace(args[1])}, nil
 	}
-	return "", nil, fmt.Errorf("Usage: vibehost-server [--agent provider] <app> [snapshot|snapshots|restore <snapshot>|shell|port|delete|exists]")
+	return "", nil, fmt.Errorf("Usage: viberun-server [--agent provider] <app> [snapshot|snapshots|restore <snapshot>|shell|port|delete|exists]")
+}
+
+func hasHelpFlag(args []string) bool {
+	for _, arg := range args {
+		switch strings.TrimSpace(arg) {
+		case "-h", "--help", "--help-llm", "help":
+			return true
+		}
+	}
+	return false
 }
 
 func resolvePort(state *server.State, app string, containerName string, exists bool) (int, bool, error) {
@@ -365,10 +387,10 @@ func syncPortsFromContainers(state *server.State) (bool, error) {
 
 	updated := false
 	for _, name := range containers {
-		if !strings.HasPrefix(name, "vibehost-") {
+		if !strings.HasPrefix(name, "viberun-") {
 			continue
 		}
-		app := strings.TrimPrefix(name, "vibehost-")
+		app := strings.TrimPrefix(name, "viberun-")
 		if app == "" {
 			continue
 		}
@@ -433,8 +455,8 @@ func dockerExec(name string, agentArgs []string) error {
 			env["COLORTERM"] = colorTerm
 		}
 	}
-	if agentCheck := strings.TrimSpace(os.Getenv("VIBEHOST_AGENT_CHECK")); agentCheck != "" {
-		env["VIBEHOST_AGENT_CHECK"] = agentCheck
+	if agentCheck := strings.TrimSpace(os.Getenv("VIBERUN_AGENT_CHECK")); agentCheck != "" {
+		env["VIBERUN_AGENT_CHECK"] = agentCheck
 	}
 	args := dockerExecArgs(name, agentArgs, tty, env)
 	cmd := exec.Command("docker", args...)
@@ -479,7 +501,7 @@ func dockerExecArgs(name string, agentArgs []string, tty bool, env map[string]st
 func explainStoppedContainer(name string) {
 	if mismatch, imageArch, hostArch, err := containerArchMismatch(name); err == nil && mismatch {
 		fmt.Fprintf(os.Stderr, "container image architecture mismatch (image=%s, host=%s)\n", imageArch, hostArch)
-		fmt.Fprintf(os.Stderr, "run `vibehost %s --delete -y` to recreate with the correct image\n", name)
+		fmt.Fprintf(os.Stderr, "run `viberun %s --delete -y` to recreate with the correct image\n", name)
 		return
 	}
 	if tail, err := containerLogsTail(name, 5); err == nil && strings.TrimSpace(tail) != "" {
@@ -548,7 +570,7 @@ func containerLogsTail(name string, lines int) (string, error) {
 }
 
 func snapshotRepo(app string) string {
-	return fmt.Sprintf("vibehost-snapshot-%s", app)
+	return fmt.Sprintf("viberun-snapshot-%s", app)
 }
 
 func deleteApp(containerName string, app string, state *server.State, exists bool) (bool, error) {
@@ -666,36 +688,26 @@ func dockerRunArgs(name string, app string, port int, image string) []string {
 		name,
 		"-p",
 		fmt.Sprintf("%d:8080", port),
-		"--privileged",
-		"--cgroupns=host",
-		"--tmpfs",
-		"/run",
-		"--tmpfs",
-		"/run/lock",
-		"-v",
-		"/sys/fs/cgroup:/sys/fs/cgroup:rw",
-		"-v",
-		"/var/run/docker.sock:/var/run/docker.sock",
 		"-e",
-		"VIBEHOST_APP_PORT=8080",
+		"VIBERUN_APP_PORT=8080",
 		"-e",
-		fmt.Sprintf("VIBEHOST_HOST_PORT=%d", port),
+		fmt.Sprintf("VIBERUN_HOST_PORT=%d", port),
 		"-e",
-		fmt.Sprintf("VIBEHOST_APP=%s", app),
+		fmt.Sprintf("VIBERUN_APP=%s", app),
 		"-e",
-		fmt.Sprintf("VIBEHOST_CONTAINER=%s", name),
+		fmt.Sprintf("VIBERUN_CONTAINER=%s", name),
 		"-e",
-		fmt.Sprintf("VIBEHOST_PORT=%d", port),
+		fmt.Sprintf("VIBERUN_PORT=%d", port),
 	}
 	if socketPath, ok := xdgOpenSocketPath(); ok {
 		args = append(args,
 			"-v",
 			fmt.Sprintf("%s:%s", socketPath, socketPath),
 			"-e",
-			fmt.Sprintf("VIBEHOST_XDG_OPEN_SOCKET=%s", socketPath),
+			fmt.Sprintf("VIBERUN_XDG_OPEN_SOCKET=%s", socketPath),
 		)
 	}
-	args = append(args, image, "/sbin/init")
+	args = append(args, image, "/usr/bin/s6-svscan", "/etc/services.d")
 	return args
 }
 
@@ -715,7 +727,7 @@ func agentCommand(provider string) ([]string, error) {
 
 func tmuxSessionArgs(session string, command []string) []string {
 	if strings.TrimSpace(session) == "" {
-		session = "vibehost-session"
+		session = "viberun-session"
 	}
 	if len(command) == 0 {
 		command = []string{"/bin/bash"}
@@ -725,14 +737,14 @@ func tmuxSessionArgs(session string, command []string) []string {
 }
 
 func xdgOpenSocketPath() (string, bool) {
-	socket := strings.TrimSpace(os.Getenv("VIBEHOST_XDG_OPEN_SOCKET"))
+	socket := strings.TrimSpace(os.Getenv("VIBERUN_XDG_OPEN_SOCKET"))
 	if socket == "" {
 		return "", false
 	}
 	if waitForSocket(socket, 10, 100*time.Millisecond) {
 		return socket, true
 	}
-	fmt.Fprintf(os.Stderr, "warning: VIBEHOST_XDG_OPEN_SOCKET is set but socket not found at %s\n", socket)
+	fmt.Fprintf(os.Stderr, "warning: VIBERUN_XDG_OPEN_SOCKET is set but socket not found at %s\n", socket)
 	return "", false
 }
 
@@ -750,7 +762,7 @@ func waitForSocket(path string, attempts int, delay time.Duration) bool {
 }
 
 func autoCreateEnabled() bool {
-	value := strings.TrimSpace(strings.ToLower(os.Getenv("VIBEHOST_AUTO_CREATE")))
+	value := strings.TrimSpace(strings.ToLower(os.Getenv("VIBERUN_AUTO_CREATE")))
 	switch value {
 	case "1", "true", "yes", "y":
 		return true

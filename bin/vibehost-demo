@@ -1,5 +1,0 @@
-#!/bin/sh
-set -eu
-
-mkdir -p /var/log
-echo "vibehost demo service started at $(date -u +"%Y-%m-%dT%H:%M:%SZ")" > /var/log/vibehost-demo.log

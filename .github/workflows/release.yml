@@ -34,11 +34,11 @@ jobs:
       - name: Build and push container image
         run: mise run release:push-image
         env:
-          IMAGE: ghcr.io/${{ github.repository }}/vibehost:${{ github.ref_name }}
-          IMAGE_LATEST: ghcr.io/${{ github.repository }}/vibehost:latest
+          IMAGE: ghcr.io/${{ github.repository }}/viberun:${{ github.ref_name }}
+          IMAGE_LATEST: ghcr.io/${{ github.repository }}/viberun:latest
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: vibehost-${{ github.ref_name }}-dist
+          name: viberun-${{ github.ref_name }}-dist
           path: dist/

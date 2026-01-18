@@ -13,7 +13,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/shayne/vibehost/internal/authbundle"
+	"github.com/shayne/viberun/internal/authbundle"
 )
 
 type localAuth struct {
@@ -175,7 +175,7 @@ func uploadAuthFile(host string, localPath string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	remotePath := fmt.Sprintf("/tmp/vibehost-auth-%s", token)
+	remotePath := fmt.Sprintf("/tmp/viberun-auth-%s", token)
 	if err := uploadFileOverSSH(host, localPath, remotePath); err != nil {
 		return "", err
 	}

@@ -7,29 +7,29 @@ func TestRemoteArgsDefaultsAgent(t *testing.T) {
 	if len(args) < 4 {
 		t.Fatalf("expected at least 4 args, got %d", len(args))
 	}
-	if args[0] != "vibehost-server" || args[1] != "--agent" || args[2] != "codex" || args[3] != "myapp" {
+	if args[0] != "viberun-server" || args[1] != "--agent" || args[2] != "codex" || args[3] != "myapp" {
 		t.Fatalf("unexpected args: %#v", args)
 	}
 }
 
 func TestRemoteArgsIncludesAgentCheckEnv(t *testing.T) {
-	t.Setenv("VIBEHOST_AGENT_CHECK", "vibehost-agent-check")
+	t.Setenv("VIBERUN_AGENT_CHECK", "viberun-agent-check")
 	args := RemoteArgs("myapp", "codex", nil, nil)
 	if len(args) < 6 {
 		t.Fatalf("expected env-prefixed args, got %v", args)
 	}
-	if args[0] != "env" || args[1] != "VIBEHOST_AGENT_CHECK=vibehost-agent-check" {
+	if args[0] != "env" || args[1] != "VIBERUN_AGENT_CHECK=viberun-agent-check" {
 		t.Fatalf("unexpected env prefix: %#v", args[:2])
 	}
-	if args[2] != "vibehost-server" || args[3] != "--agent" || args[4] != "codex" || args[5] != "myapp" {
+	if args[2] != "viberun-server" || args[3] != "--agent" || args[4] != "codex" || args[5] != "myapp" {
 		t.Fatalf("unexpected args: %#v", args)
 	}
 }
 
 func TestRemoteArgsIncludesExtraEnv(t *testing.T) {
-	t.Setenv("VIBEHOST_AGENT_CHECK", "vibehost-agent-check")
+	t.Setenv("VIBERUN_AGENT_CHECK", "viberun-agent-check")
 	args := RemoteArgs("myapp", "codex", []string{"shell"}, map[string]string{
-		"VIBEHOST_XDG_OPEN_SOCKET": "/tmp/vibehost-open.sock",
+		"VIBERUN_XDG_OPEN_SOCKET": "/tmp/viberun-open.sock",
 	})
 	if len(args) < 8 {
 		t.Fatalf("expected env-prefixed args, got %v", args)
@@ -37,19 +37,19 @@ func TestRemoteArgsIncludesExtraEnv(t *testing.T) {
 	if args[0] != "env" {
 		t.Fatalf("expected env prefix, got %v", args)
 	}
-	if args[1] != "VIBEHOST_AGENT_CHECK=vibehost-agent-check" {
+	if args[1] != "VIBERUN_AGENT_CHECK=viberun-agent-check" {
 		t.Fatalf("unexpected first env: %v", args[1])
 	}
-	if args[2] != "VIBEHOST_XDG_OPEN_SOCKET=/tmp/vibehost-open.sock" {
+	if args[2] != "VIBERUN_XDG_OPEN_SOCKET=/tmp/viberun-open.sock" {
 		t.Fatalf("unexpected second env: %v", args[2])
 	}
-	if args[3] != "vibehost-server" || args[4] != "--agent" || args[5] != "codex" || args[6] != "myapp" {
+	if args[3] != "viberun-server" || args[4] != "--agent" || args[5] != "codex" || args[6] != "myapp" {
 		t.Fatalf("unexpected args: %#v", args)
 	}
 }
 
 func TestBuildArgsTTY(t *testing.T) {
-	remote := []string{"vibehost-server", "--agent", "codex", "myapp"}
+	remote := []string{"viberun-server", "--agent", "codex", "myapp"}
 	args := BuildArgs("host-a", remote, true)
 	if len(args) < 2 {
 		t.Fatalf("expected args, got %v", args)
@@ -63,7 +63,7 @@ func TestBuildArgsTTY(t *testing.T) {
 }
 
 func TestBuildArgsNoTTY(t *testing.T) {
-	remote := []string{"vibehost-server", "--agent", "codex", "myapp", "snapshot"}
+	remote := []string{"viberun-server", "--agent", "codex", "myapp", "snapshot"}
 	args := BuildArgs("host-a", remote, false)
 	if len(args) < 2 {
 		t.Fatalf("expected args, got %v", args)
@@ -77,7 +77,7 @@ func TestBuildArgsNoTTY(t *testing.T) {
 }
 
 func TestBuildArgsWithLocalForward(t *testing.T) {
-	remote := []string{"vibehost-server", "--agent", "codex", "myapp"}
+	remote := []string{"viberun-server", "--agent", "codex", "myapp"}
 	forward := &LocalForward{
 		LocalPort:  8080,
 		RemoteHost: "localhost",
@@ -102,9 +102,9 @@ func TestBuildArgsWithLocalForward(t *testing.T) {
 }
 
 func TestBuildArgsWithRemoteSocketForward(t *testing.T) {
-	remote := []string{"vibehost-server", "--agent", "codex", "myapp"}
+	remote := []string{"viberun-server", "--agent", "codex", "myapp"}
 	remoteSocket := &RemoteSocketForward{
-		RemotePath: "/tmp/vibehost-open.sock",
+		RemotePath: "/tmp/viberun-open.sock",
 		LocalHost:  "localhost",
 		LocalPort:  51234,
 	}
@@ -124,7 +124,7 @@ func TestBuildArgsWithRemoteSocketForward(t *testing.T) {
 	if args[5] != "-R" {
 		t.Fatalf("expected -R, got %q", args[5])
 	}
-	if args[6] != "/tmp/vibehost-open.sock:localhost:51234" {
+	if args[6] != "/tmp/viberun-open.sock:localhost:51234" {
 		t.Fatalf("unexpected remote forward: %v", args[6])
 	}
 }

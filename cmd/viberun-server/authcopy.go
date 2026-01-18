@@ -11,7 +11,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/shayne/vibehost/internal/authbundle"
+	"github.com/shayne/viberun/internal/authbundle"
 )
 
 const (
@@ -20,7 +20,7 @@ const (
 )
 
 func loadAuthBundleFromEnv() (*authbundle.Bundle, error) {
-	raw := strings.TrimSpace(os.Getenv("VIBEHOST_AUTH_BUNDLE"))
+	raw := strings.TrimSpace(os.Getenv("VIBERUN_AUTH_BUNDLE"))
 	if raw == "" {
 		return nil, nil
 	}

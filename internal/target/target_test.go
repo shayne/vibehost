@@ -3,7 +3,7 @@ package target
 import (
 	"testing"
 
-	"github.com/shayne/vibehost/internal/config"
+	"github.com/shayne/viberun/internal/config"
 )
 
 func TestResolveUsesDefaultHost(t *testing.T) {

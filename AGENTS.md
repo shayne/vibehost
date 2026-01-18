@@ -1,22 +1,21 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-- `cmd/`: Go entrypoints (`vibehost`, `vibehost-server`).
+- `cmd/`: Go entrypoints (`viberun`, `viberun-server`).
 - `internal/`: core packages (config, server state, SSH args, target parsing).
-- `bin/`: helper scripts (`vibehost-e2e-local`, `vibehost-integration`, installers).
+- `bin/`: helper scripts (`viberun-e2e-local`, `viberun-integration`, installers).
 - `skills/`: Codex skills and templates used inside containers.
-- `systemd/`: unit files for the demo service.
 - `Dockerfile`: base container image.
 
 ## Build, Test, and Development Commands
 - `mise install`: installs toolchain pinned by `mise`.
-- `mise exec -- go build ./cmd/vibehost`: build CLI.
-- `mise exec -- go build ./cmd/vibehost-server`: build server binary.
+- `mise exec -- go build ./cmd/viberun`: build CLI.
+- `mise exec -- go build ./cmd/viberun-server`: build server binary.
 - `mise exec -- go test ./...`: run all Go tests.
 - `mise exec -- go vet ./...`: static analysis.
-- `docker build -t vibehost .`: build container image (fallback).
-- `bin/vibehost-e2e-local`: local E2E flow via SSH.
-- `bin/vibehost-integration`: integration checks against a host.
+- `docker build -t viberun .`: build container image (fallback).
+- `bin/viberun-e2e-local`: local E2E flow via SSH.
+- `bin/viberun-integration`: integration checks against a host.
 
 ## Coding Style & Naming Conventions
 - Go code is formatted with `gofmt` (tabs for indentation).

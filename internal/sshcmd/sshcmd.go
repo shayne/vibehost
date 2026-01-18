@@ -12,11 +12,11 @@ func RemoteArgs(app string, agentProvider string, actionArgs []string, extraEnv 
 	if strings.TrimSpace(agentProvider) == "" {
 		agentProvider = "codex"
 	}
-	remote := []string{"vibehost-server", "--agent", agentProvider, app}
+	remote := []string{"viberun-server", "--agent", agentProvider, app}
 	remote = append(remote, actionArgs...)
 	entries := map[string]string{}
-	if value := strings.TrimSpace(os.Getenv("VIBEHOST_AGENT_CHECK")); value != "" {
-		entries["VIBEHOST_AGENT_CHECK"] = value
+	if value := strings.TrimSpace(os.Getenv("VIBERUN_AGENT_CHECK")); value != "" {
+		entries["VIBERUN_AGENT_CHECK"] = value
 	}
 	for key, value := range extraEnv {
 		if strings.TrimSpace(key) == "" || strings.TrimSpace(value) == "" {

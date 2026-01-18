@@ -35,7 +35,7 @@ func TestStateLoadSave(t *testing.T) {
 	if len(state.Ports) != 0 {
 		t.Fatalf("expected empty state")
 	}
-	if filepath.Dir(path) != filepath.Join(tmp, "vibehost") {
+	if filepath.Dir(path) != filepath.Join(tmp, "viberun") {
 		t.Fatalf("unexpected state path: %s", path)
 	}
 

@@ -15,8 +15,8 @@ mise install
 
 ## Build
 ```bash
-mise exec -- go build ./cmd/vibehost
-mise exec -- go build ./cmd/vibehost-server
+mise exec -- go build ./cmd/viberun
+mise exec -- go build ./cmd/viberun-server
 ```
 
 ## Test and vet
@@ -33,12 +33,12 @@ mise run build:image
 
 Fallback:
 ```bash
-docker build -t vibehost .
+docker build -t viberun .
 ```
 
 ## Local E2E (localhost SSH)
 ```bash
-bin/vibehost-e2e-local
+bin/viberun-e2e-local
 ```
 
 ## Integration (host with Docker)
@@ -49,7 +49,7 @@ mise run integration
 
 Fallback:
 ```bash
-bin/vibehost-integration
+bin/viberun-integration
 ```
 
 ## Notes

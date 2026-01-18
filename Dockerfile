@@ -1,20 +1,16 @@
 FROM ubuntu:24.04
 
 ENV DEBIAN_FRONTEND=noninteractive
-ENV container=docker
 ENV CODEX_HOME=/root/.codex
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
-    dbus \
-    docker.io \
+    s6 \
     nodejs \
     npm \
     sudo \
-    systemd \
-    systemd-sysv \
     tmux \
     tzdata \
   && apt-get clean \
@@ -26,22 +22,22 @@ RUN curl -fsSL https://starship.rs/install.sh | sh -s -- -y \
 RUN set -eux; \
   printf '%s\n' \
     '#!/bin/sh' \
-    'if [ -n "${VIBEHOST_AGENT_CHECK:-}" ]; then' \
-    '  exec sh -c "$VIBEHOST_AGENT_CHECK"' \
+    'if [ -n "${VIBERUN_AGENT_CHECK:-}" ]; then' \
+    '  exec sh -c "$VIBERUN_AGENT_CHECK"' \
     'fi' \
     'exec npx -y @openai/codex@latest --dangerously-bypass-approvals-and-sandbox "$@"' \
     > /usr/local/bin/codex; \
   printf '%s\n' \
     '#!/bin/sh' \
-    'if [ -n "${VIBEHOST_AGENT_CHECK:-}" ]; then' \
-    '  exec sh -c "$VIBEHOST_AGENT_CHECK"' \
+    'if [ -n "${VIBERUN_AGENT_CHECK:-}" ]; then' \
+    '  exec sh -c "$VIBERUN_AGENT_CHECK"' \
     'fi' \
     'exec npx -y @anthropic-ai/claude-code@latest --dangerously-skip-permissions "$@"' \
     > /usr/local/bin/claude; \
   printf '%s\n' \
     '#!/bin/sh' \
-    'if [ -n "${VIBEHOST_AGENT_CHECK:-}" ]; then' \
-    '  exec sh -c "$VIBEHOST_AGENT_CHECK"' \
+    'if [ -n "${VIBERUN_AGENT_CHECK:-}" ]; then' \
+    '  exec sh -c "$VIBERUN_AGENT_CHECK"' \
     'fi' \
     'exec npx -y @google/gemini-cli@latest --approval-mode=yolo "$@"' \
     > /usr/local/bin/gemini; \
@@ -53,7 +49,7 @@ RUN set -eux; \
     '  echo "xdg-open: missing url" >&2' \
     '  exit 2' \
     'fi' \
-    'socket="${VIBEHOST_XDG_OPEN_SOCKET:-/tmp/vibehost-open.sock}"' \
+    'socket="${VIBERUN_XDG_OPEN_SOCKET:-/tmp/viberun-open.sock}"' \
     'if [ -S "$socket" ]; then' \
     '  exec curl -sS --unix-socket "$socket" -X POST --data-urlencode "url=$url" http://localhost/open' \
     'fi' \
@@ -65,24 +61,30 @@ RUN set -eux; \
     > /usr/local/bin/xdg-open; \
   printf '%s\n' \
     '#!/bin/sh' \
-    "printf 'vibehost-agent-check ok\\\\n'" \
-    > /usr/local/bin/vibehost-agent-check; \
-  chmod +x /usr/local/bin/codex /usr/local/bin/claude /usr/local/bin/gemini /usr/local/bin/xdg-open /usr/local/bin/vibehost-agent-check
+    "printf 'viberun-agent-check ok\\\\n'" \
+    > /usr/local/bin/viberun-agent-check; \
+  chmod +x /usr/local/bin/codex /usr/local/bin/claude /usr/local/bin/gemini /usr/local/bin/xdg-open /usr/local/bin/viberun-agent-check
 
-COPY bin/vibehost-tmux-status /usr/local/bin/vibehost-tmux-status
+COPY bin/viberun-tmux-status /usr/local/bin/viberun-tmux-status
+COPY bin/vrctl /usr/local/bin/vrctl
 COPY config/tmux.conf /etc/tmux.conf
 COPY config/starship.toml /root/.config/starship.toml
-COPY config/bashrc-vibehost.sh /etc/profile.d/vibehost.sh
-RUN chmod +x /usr/local/bin/vibehost-tmux-status \
-  && cat /etc/profile.d/vibehost.sh >> /etc/bash.bashrc
+COPY config/bashrc-viberun.sh /etc/profile.d/viberun.sh
+RUN chmod +x /usr/local/bin/viberun-tmux-status \
+  && chmod +x /usr/local/bin/vrctl \
+  && cat /etc/profile.d/viberun.sh >> /etc/bash.bashrc
 
 RUN mkdir -p ${CODEX_HOME}/skills
 COPY skills/ ${CODEX_HOME}/skills/
-COPY bin/vibehost-demo /usr/local/bin/vibehost-demo
-COPY bin/vibehost-container /usr/local/bin/vibehost-container
-COPY systemd/vibehost-demo.service /etc/systemd/system/vibehost-demo.service
-RUN systemctl enable vibehost-demo.service
+RUN mkdir -p ${CODEX_HOME} \
+  && printf '%s\n' \
+    '[features]' \
+    'skills = true' \
+    'web_search_request = true' \
+    'unified_exec = true' \
+    'shell_snapshot = true' \
+    'steer = true' \
+    > ${CODEX_HOME}/config.toml
+RUN mkdir -p /etc/services.d /var/log/vrctl
 
-VOLUME ["/sys/fs/cgroup"]
-STOPSIGNAL SIGRTMIN+3
-CMD ["/sbin/init"]
+CMD ["/usr/bin/s6-svscan", "/etc/services.d"]
