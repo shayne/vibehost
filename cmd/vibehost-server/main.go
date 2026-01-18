@@ -29,7 +29,7 @@ func main() {
 	}
 
 	if fs.NArg() < 1 || fs.NArg() > 3 {
-		fmt.Fprintln(os.Stderr, "Usage: vibehost-server [--agent provider] <app> [snapshot|snapshots|restore <snapshot>|shell|port|delete]")
+		fmt.Fprintln(os.Stderr, "Usage: vibehost-server [--agent provider] <app> [snapshot|snapshots|restore <snapshot>|shell|port|delete|exists]")
 		os.Exit(2)
 	}
 	args := fs.Args()
@@ -80,6 +80,11 @@ func main() {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to inspect container: %v\n", err)
 		os.Exit(1)
+	}
+
+	if action == "exists" {
+		fmt.Fprintln(os.Stdout, exists)
+		return
 	}
 
 	if action == "snapshot" {
@@ -171,9 +176,11 @@ func main() {
 	}
 
 	if !exists {
-		if !promptCreate(app) {
-			fmt.Fprintln(os.Stderr, "aborted")
-			os.Exit(1)
+		if !autoCreateEnabled() {
+			if !promptCreate(app) {
+				fmt.Fprintln(os.Stderr, "aborted")
+				os.Exit(1)
+			}
 		}
 
 		if err := dockerRun(containerName, app, port); err != nil {
@@ -197,6 +204,28 @@ func main() {
 	if stateDirty {
 		if err := server.SaveState(statePath, state); err != nil {
 			fmt.Fprintf(os.Stderr, "failed to save server state: %v\n", err)
+			os.Exit(1)
+		}
+	}
+
+	running, err := containerRunning(containerName)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to check container state: %v\n", err)
+		os.Exit(1)
+	}
+	if !running {
+		explainStoppedContainer(containerName)
+		os.Exit(1)
+	}
+
+	authBundle, err := loadAuthBundleFromEnv()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to load auth bundle: %v\n", err)
+		os.Exit(1)
+	}
+	if !exists && authBundle != nil {
+		if err := applyAuthBundle(containerName, authBundle); err != nil {
+			fmt.Fprintf(os.Stderr, "failed to apply auth bundle: %v\n", err)
 			os.Exit(1)
 		}
 	}
@@ -226,13 +255,16 @@ func parseAction(args []string) (string, []string, error) {
 	if len(args) == 1 && args[0] == "port" {
 		return "port", nil, nil
 	}
+	if len(args) == 1 && args[0] == "exists" {
+		return "exists", nil, nil
+	}
 	if len(args) == 1 && args[0] == "delete" {
 		return "delete", nil, nil
 	}
 	if len(args) == 2 && args[0] == "restore" && strings.TrimSpace(args[1]) != "" {
 		return "restore", []string{strings.TrimSpace(args[1])}, nil
 	}
-	return "", nil, fmt.Errorf("Usage: vibehost-server [--agent provider] <app> [snapshot|snapshots|restore <snapshot>|shell|port|delete]")
+	return "", nil, fmt.Errorf("Usage: vibehost-server [--agent provider] <app> [snapshot|snapshots|restore <snapshot>|shell|port|delete|exists]")
 }
 
 func resolvePort(state *server.State, app string, containerName string, exists bool) (int, bool, error) {
@@ -444,6 +476,77 @@ func dockerExecArgs(name string, agentArgs []string, tty bool, env map[string]st
 	return append(args, agentArgs...)
 }
 
+func explainStoppedContainer(name string) {
+	if mismatch, imageArch, hostArch, err := containerArchMismatch(name); err == nil && mismatch {
+		fmt.Fprintf(os.Stderr, "container image architecture mismatch (image=%s, host=%s)\n", imageArch, hostArch)
+		fmt.Fprintf(os.Stderr, "run `vibehost %s --delete -y` to recreate with the correct image\n", name)
+		return
+	}
+	if tail, err := containerLogsTail(name, 5); err == nil && strings.TrimSpace(tail) != "" {
+		fmt.Fprintf(os.Stderr, "container stopped; last logs:\n%s\n", tail)
+	}
+	fmt.Fprintf(os.Stderr, "container %s is not running\n", name)
+}
+
+func containerArchMismatch(name string) (bool, string, string, error) {
+	imageID, err := containerImageID(name)
+	if err != nil {
+		return false, "", "", err
+	}
+	imageArch, err := imageArchitecture(imageID)
+	if err != nil {
+		return false, "", "", err
+	}
+	hostArch, err := hostArchitecture()
+	if err != nil {
+		return false, "", "", err
+	}
+	return imageArch != hostArch, imageArch, hostArch, nil
+}
+
+func containerImageID(name string) (string, error) {
+	out, err := exec.Command("docker", "inspect", "-f", "{{.Image}}", name).Output()
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
+func imageArchitecture(image string) (string, error) {
+	out, err := exec.Command("docker", "image", "inspect", "-f", "{{.Architecture}}", image).Output()
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
+func hostArchitecture() (string, error) {
+	out, err := exec.Command("uname", "-m").Output()
+	if err != nil {
+		return "", err
+	}
+	value := strings.ToLower(strings.TrimSpace(string(out)))
+	switch value {
+	case "x86_64", "amd64":
+		return "amd64", nil
+	case "arm64", "aarch64":
+		return "arm64", nil
+	default:
+		return value, nil
+	}
+}
+
+func containerLogsTail(name string, lines int) (string, error) {
+	if lines < 1 {
+		lines = 1
+	}
+	out, err := exec.Command("docker", "logs", "--tail", strconv.Itoa(lines), name).CombinedOutput()
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimRight(string(out), "\n"), nil
+}
+
 func snapshotRepo(app string) string {
 	return fmt.Sprintf("vibehost-snapshot-%s", app)
 }
@@ -644,6 +747,16 @@ func waitForSocket(path string, attempts int, delay time.Duration) bool {
 		time.Sleep(delay)
 	}
 	return false
+}
+
+func autoCreateEnabled() bool {
+	value := strings.TrimSpace(strings.ToLower(os.Getenv("VIBEHOST_AUTO_CREATE")))
+	switch value {
+	case "1", "true", "yes", "y":
+		return true
+	default:
+		return false
+	}
 }
 
 func isSocket(path string) bool {

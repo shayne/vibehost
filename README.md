@@ -45,15 +45,15 @@ vibehost myapp
 
 If this is the first run, the server will prompt to create the container. Press Enter to accept.
 
-### 4) Use Codex to build a hello-world web server
+### 4) Use Codex to build a hello-world app
 
 In the agent session, use a prompt like:
 
 ```
-Create a hello-world HTTP server that listens on port 8080 and responds with "hello from vibehost" at /. Keep it running.
+Create a beautiful hello-world web app with a simple, tasteful landing page. Keep it running as a service so I can open it from my laptop.
 ```
 
-By convention, apps listen on container port 8080.
+By convention, apps listen on container port 8080. Make sure your server binds to `0.0.0.0` (not `127.0.0.1`) so the host port mapping works.
 
 ### 5) Open the app in your local browser
 
@@ -68,6 +68,7 @@ http://localhost:8080
 ```
 
 If you run multiple apps on the same host, the next app maps to 8081, then 8082, etc.
+`vibehost` prints the local proxy URL when it starts the session.
 
 ## How it works
 

@@ -4,8 +4,8 @@ import (
 	"bufio"
 	"crypto/rand"
 	"encoding/base64"
-	"encoding/json"
 	"encoding/hex"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -120,6 +120,33 @@ func main() {
 		os.Exit(1)
 	}
 	extraEnv := map[string]string{}
+	if interactive && tty {
+		exists, err := remoteContainerExists(resolved, agentProvider)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err.Error())
+			os.Exit(1)
+		}
+		if !exists {
+			if !promptCreateLocal(resolved.App) {
+				fmt.Fprintln(os.Stderr, "aborted")
+				os.Exit(1)
+			}
+			extraEnv["VIBEHOST_AUTO_CREATE"] = "1"
+			localAuth, details, err := discoverLocalAuth(agentProvider)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "auth discovery failed: %v\n", err)
+			} else if localAuth != nil && promptCopyAuth(resolved.App, agentProvider, details) {
+				bundle, err := stageAuthBundle(resolved.Host, localAuth)
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "failed to stage auth: %v\n", err)
+				} else if encoded, err := encodeAuthBundle(bundle); err != nil {
+					fmt.Fprintf(os.Stderr, "failed to encode auth: %v\n", err)
+				} else if encoded != "" {
+					extraEnv["VIBEHOST_AUTH_BUNDLE"] = encoded
+				}
+			}
+		}
+	}
 	var openServer *http.Server
 	var remoteSocket *sshcmd.RemoteSocketForward
 	if interactive {
@@ -569,6 +596,23 @@ func resolveHostPort(resolved target.Resolved, agentProvider string) (int, error
 	return port, nil
 }
 
+func remoteContainerExists(resolved target.Resolved, agentProvider string) (bool, error) {
+	remoteArgs := sshcmd.RemoteArgs(resolved.App, agentProvider, []string{"exists"}, nil)
+	sshArgs := sshcmd.BuildArgs(resolved.Host, remoteArgs, false)
+	cmd := exec.Command("ssh", sshArgs...)
+	cmd.Env = normalizedSshEnv()
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		trimmed := strings.TrimSpace(string(output))
+		if trimmed == "" {
+			trimmed = err.Error()
+		}
+		return false, fmt.Errorf("failed to check container: %s", trimmed)
+	}
+	text := strings.TrimSpace(strings.ToLower(string(output)))
+	return text == "true" || text == "yes" || text == "1", nil
+}
+
 func ensureLocalPortAvailable(port int) error {
 	if port <= 0 {
 		return fmt.Errorf("invalid host port %d", port)
@@ -703,6 +747,17 @@ func promptDelete(app string) bool {
 	}
 	input = strings.TrimSpace(strings.ToLower(input))
 	return input == "y" || input == "yes"
+}
+
+func promptCreateLocal(app string) bool {
+	reader := bufio.NewReader(os.Stdin)
+	fmt.Fprintf(os.Stdout, "App %s does not exist. Create? [Y/n]: ", app)
+	input, err := reader.ReadString('\n')
+	if err != nil && err != io.EOF {
+		return false
+	}
+	input = strings.TrimSpace(strings.ToLower(input))
+	return input == "" || input == "y" || input == "yes"
 }
 
 func isDevRun() bool {

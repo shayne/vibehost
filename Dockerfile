@@ -16,8 +16,12 @@ RUN apt-get update \
     systemd \
     systemd-sysv \
     tmux \
+    tzdata \
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/*
+
+RUN curl -fsSL https://starship.rs/install.sh | sh -s -- -y \
+  && mkdir -p /root/.config
 
 RUN set -eux; \
   printf '%s\n' \
@@ -25,21 +29,21 @@ RUN set -eux; \
     'if [ -n "${VIBEHOST_AGENT_CHECK:-}" ]; then' \
     '  exec sh -c "$VIBEHOST_AGENT_CHECK"' \
     'fi' \
-    'exec npx -y @openai/codex@latest "$@"' \
+    'exec npx -y @openai/codex@latest --dangerously-bypass-approvals-and-sandbox "$@"' \
     > /usr/local/bin/codex; \
   printf '%s\n' \
     '#!/bin/sh' \
     'if [ -n "${VIBEHOST_AGENT_CHECK:-}" ]; then' \
     '  exec sh -c "$VIBEHOST_AGENT_CHECK"' \
     'fi' \
-    'exec npx -y @anthropic-ai/claude-code@latest "$@"' \
+    'exec npx -y @anthropic-ai/claude-code@latest --dangerously-skip-permissions "$@"' \
     > /usr/local/bin/claude; \
   printf '%s\n' \
     '#!/bin/sh' \
     'if [ -n "${VIBEHOST_AGENT_CHECK:-}" ]; then' \
     '  exec sh -c "$VIBEHOST_AGENT_CHECK"' \
     'fi' \
-    'exec npx -y @google/gemini-cli@latest "$@"' \
+    'exec npx -y @google/gemini-cli@latest --approval-mode=yolo "$@"' \
     > /usr/local/bin/gemini; \
   printf '%s\n' \
     '#!/bin/sh' \
@@ -64,6 +68,13 @@ RUN set -eux; \
     "printf 'vibehost-agent-check ok\\\\n'" \
     > /usr/local/bin/vibehost-agent-check; \
   chmod +x /usr/local/bin/codex /usr/local/bin/claude /usr/local/bin/gemini /usr/local/bin/xdg-open /usr/local/bin/vibehost-agent-check
+
+COPY bin/vibehost-tmux-status /usr/local/bin/vibehost-tmux-status
+COPY config/tmux.conf /etc/tmux.conf
+COPY config/starship.toml /root/.config/starship.toml
+COPY config/bashrc-vibehost.sh /etc/profile.d/vibehost.sh
+RUN chmod +x /usr/local/bin/vibehost-tmux-status \
+  && cat /etc/profile.d/vibehost.sh >> /etc/bash.bashrc
 
 RUN mkdir -p ${CODEX_HOME}/skills
 COPY skills/ ${CODEX_HOME}/skills/
